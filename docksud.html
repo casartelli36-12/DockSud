@@ -279,22 +279,37 @@ window.__FB_CONFIG = {
       <button class="modal-x" onclick="closeInjForm()">✕</button>
     </div>
     <div class="modal-body">
-      <div class="field"><label>Diagnóstico / Lesión *</label><input id="if_dx" placeholder="Ej: Rotura fibrilar isquiotibial"></div>
       <div class="grid2">
-        <div class="field"><label>Estructura anatómica</label><input id="if_estructura" placeholder="Ej: Bíceps femoral"></div>
+        <div class="field"><label>Tipo de lesión *</label><select id="if_tipo" onchange="onTipoChange()"></select></div>
+        <div class="field"><label>Grado</label>
+          <select id="if_grado" onchange="updateDxPreview()"><option value="">—</option><option>I</option><option>II</option><option>III</option></select>
+        </div>
+      </div>
+      <div class="field"><label>Estructura / localización *</label><select id="if_estructura" onchange="onEstructuraChange()"></select></div>
+      <div class="field" style="background:var(--verde-soft);border-radius:8px;padding:8px 10px;margin-bottom:12px">
+        <label style="margin-bottom:2px">Diagnóstico (se arma solo, podés ajustarlo)</label>
+        <input id="if_dx" placeholder="Se completa automáticamente">
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Fecha de lesión *</label><input id="if_flesion" type="date"></div>
         <div class="field"><label>Mecanismo</label>
           <select id="if_mecanismo"><option value="">—</option><option>Traumático</option><option>Sobreuso</option><option>Reagudización</option></select>
         </div>
       </div>
-      <div class="grid2">
-        <div class="field"><label>Fecha de lesión *</label><input id="if_flesion" type="date"></div>
-        <div class="field"><label>Fecha de alta</label><input id="if_falta" type="date"></div>
-      </div>
+      <div class="field"><label>Fecha de alta (dejar vacío si sigue en curso)</label><input id="if_falta" type="date"></div>
       <div class="field"><label>Antecedente</label><input id="if_antecedente"></div>
-      <div class="grid2">
-        <div class="field"><label>Fecha de cirugía</label><input id="if_fcirugia" type="date"></div>
-        <div class="field"><label>Técnica quirúrgica</label><input id="if_tecnica"></div>
+
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin:12px 0;cursor:pointer">
+        <input type="checkbox" id="if_reqcirugia" onchange="onCirugiaToggle()" style="width:16px;height:16px">
+        ¿Requirió cirugía?
+      </label>
+      <div id="if_cirugia_block" class="hidden">
+        <div class="grid2">
+          <div class="field"><label>Fecha de cirugía</label><input id="if_fcirugia" type="date"></div>
+          <div class="field"><label>Técnica quirúrgica</label><input id="if_tecnica"></div>
+        </div>
       </div>
+
       <div class="field"><label>Kinesiólogo responsable</label><input id="if_kine"></div>
       <div class="field"><label>Notas</label><textarea id="if_notas"></textarea></div>
       <div style="display:flex;gap:8px;margin-top:6px">
@@ -350,8 +365,14 @@ window.__FB_CONFIG = {
 
 <script>
 /* ================= Firebase / Auth ================= */
-let auth, db, DB = {players:{}, injuries:{}, sessions:{}}, currentUser=null;
+let auth, db, DB = {players:{}, injuries:{}, sessions:{}, catalogos:{}}, currentUser=null;
 let saveTimer=null;
+
+const DEFAULT_TIPOS = ["Desgarro","Distensión","Contractura","Esguince","Ruptura ligamentaria",
+  "Tendinopatía","Fascitis","Fractura","Luxación","Contusión","Sobrecarga / fatiga muscular","Pubalgia","Otra"];
+const DEFAULT_ESTRUCTURAS = ["Isquiotibiales","Cuádriceps","Aductores","Gemelo","Sóleo","Psoas","Ilíaco",
+  "Tríceps sural","Rodilla - LCA","Rodilla - LCP","Rodilla - LLI","Rodilla - LLE","Rodilla - Menisco",
+  "Tobillo - LPAA","Tobillo - Sindesmosis","Lumbar","Pubis","Cadera","Hombro","Muñeca","Otra"];
 
 function initFirebase(){
   if(typeof firebase==="undefined") return false;
@@ -383,6 +404,7 @@ function bindData(){
     DB.players=v.players||{};
     DB.injuries=v.injuries||{};
     DB.sessions=v.sessions||{};
+    DB.catalogos=v.catalogos||{};
     normalizarDB();
     render();
   });
@@ -393,6 +415,9 @@ function save(){
 }
 function normalizarDB(){
   DB.players=DB.players||{}; DB.injuries=DB.injuries||{}; DB.sessions=DB.sessions||{};
+  DB.catalogos=DB.catalogos||{};
+  if(!DB.catalogos.tipos||!DB.catalogos.tipos.length) DB.catalogos.tipos=DEFAULT_TIPOS.slice();
+  if(!DB.catalogos.estructuras||!DB.catalogos.estructuras.length) DB.catalogos.estructuras=DEFAULT_ESTRUCTURAS.slice();
   Object.values(DB.players).forEach(p=>{ if(!p.estado) p.estado="activo"; });
   Object.values(DB.injuries).forEach(inj=>{ if(!inj.notas) inj.notas=inj.notas||""; });
 }
@@ -714,12 +739,72 @@ function barChartSVG(items, color){ // items: [{label, value}]
 
 /* ---- Injury form ---- */
 let editingInjuryId=null;
+const ADD_NEW_VAL="__add_new__";
+
+function fillCatalogSelect(selectEl, list, currentVal){
+  selectEl.innerHTML = `<option value="">—</option>` +
+    list.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join("") +
+    `<option value="${ADD_NEW_VAL}">+ agregar nuevo…</option>`;
+  if(currentVal){
+    if(!list.includes(currentVal)){
+      selectEl.insertAdjacentHTML('afterbegin', `<option value="${esc(currentVal)}">${esc(currentVal)}</option>`);
+    }
+    selectEl.value=currentVal;
+  }
+}
+
+function onTipoChange(){
+  const sel=$("#if_tipo");
+  if(sel.value===ADD_NEW_VAL){
+    const nuevo=prompt("Nuevo tipo de lesión (ej: Rotura tendinosa):");
+    sel.value="";
+    if(nuevo && nuevo.trim()){
+      const v=nuevo.trim();
+      if(!DB.catalogos.tipos.includes(v)) DB.catalogos.tipos.push(v);
+      save();
+      fillCatalogSelect(sel, DB.catalogos.tipos, v);
+    }
+  }
+  updateDxPreview();
+}
+function onEstructuraChange(){
+  const sel=$("#if_estructura");
+  if(sel.value===ADD_NEW_VAL){
+    const nuevo=prompt("Nueva estructura/localización (ej: Bíceps femoral):");
+    sel.value="";
+    if(nuevo && nuevo.trim()){
+      const v=nuevo.trim();
+      if(!DB.catalogos.estructuras.includes(v)) DB.catalogos.estructuras.push(v);
+      save();
+      fillCatalogSelect(sel, DB.catalogos.estructuras, v);
+    }
+  }
+  updateDxPreview();
+}
+function updateDxPreview(){
+  const tipo=$("#if_tipo").value, grado=$("#if_grado").value, estructura=$("#if_estructura").value;
+  if(tipo===ADD_NEW_VAL||estructura===ADD_NEW_VAL) return;
+  $("#if_dx").value = composeDx(tipo, estructura, grado);
+}
+function composeDx(tipo, estructura, grado){
+  let s=tipo||"";
+  if(grado) s += (s?" grado ":"Grado ")+grado;
+  if(estructura) s += (s? " - ":"") + estructura;
+  return s;
+}
+function onCirugiaToggle(){
+  $("#if_cirugia_block").classList.toggle("hidden", !$("#if_reqcirugia").checked);
+}
+
 function openInjForm(id){
   editingInjuryId=id||null;
   const inj = id? DB.injuries[id] : {};
   $("#injFormTitle").textContent = id? "Editar lesión":"Nueva lesión";
+
+  fillCatalogSelect($("#if_tipo"), DB.catalogos.tipos, inj.tipo||"");
+  fillCatalogSelect($("#if_estructura"), DB.catalogos.estructuras, inj.estructura||"");
+  $("#if_grado").value=inj.grado||"";
   $("#if_dx").value=inj.diagnostico||"";
-  $("#if_estructura").value=inj.estructura||"";
   $("#if_mecanismo").value=inj.mecanismo||"";
   $("#if_flesion").value=inj.fechaLesion||todayISO();
   $("#if_falta").value=inj.fechaAlta||"";
@@ -728,18 +813,25 @@ function openInjForm(id){
   $("#if_tecnica").value=inj.tecnica||"";
   $("#if_kine").value=inj.kine||"";
   $("#if_notas").value=inj.notas||"";
+  $("#if_reqcirugia").checked = !!(inj.fechaCirugia||inj.tecnica);
+  onCirugiaToggle();
   $("#injFormOverlay").classList.add("open");
 }
 function closeInjForm(){ $("#injFormOverlay").classList.remove("open"); }
 function saveInjury(){
-  const dx=$("#if_dx").value.trim(), fl=$("#if_flesion").value;
-  if(!dx||!fl){ toast("Falta diagnóstico o fecha de lesión"); return; }
+  const tipo=$("#if_tipo").value, estructura=$("#if_estructura").value, fl=$("#if_flesion").value;
+  let dx=$("#if_dx").value.trim();
+  if(!dx) dx=composeDx(tipo,estructura,$("#if_grado").value);
+  if(!tipo||!fl){ toast("Falta el tipo de lesión o la fecha de lesión"); return; }
+  const reqCirugia=$("#if_reqcirugia").checked;
   const id=editingInjuryId||uid();
   DB.injuries[id]={
     playerId: detailId,
-    diagnostico:dx, estructura:$("#if_estructura").value, mecanismo:$("#if_mecanismo").value,
+    tipo, estructura, grado:$("#if_grado").value, diagnostico:dx, mecanismo:$("#if_mecanismo").value,
     fechaLesion:fl, fechaAlta:$("#if_falta").value||"",
-    antecedente:$("#if_antecedente").value, fechaCirugia:$("#if_fcirugia").value, tecnica:$("#if_tecnica").value,
+    antecedente:$("#if_antecedente").value,
+    fechaCirugia: reqCirugia? $("#if_fcirugia").value : "",
+    tecnica: reqCirugia? $("#if_tecnica").value : "",
     kine:$("#if_kine").value, notas:$("#if_notas").value
   };
   save(); closeInjForm(); detTab='lesiones'; renderDetail(); renderPlantel();
