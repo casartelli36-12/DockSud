@@ -970,6 +970,11 @@ function composeDx(tipo, estructura, grado, porcion, lado){
   if(lado) s += " - "+lado;
   return s;
 }
+// Clave para agrupar estadísticas: mismo tipo+estructura cuenta igual sin importar lado o grado
+// (ej: "LCA derecho" y "LCA izquierdo" son la misma categoría de lesión)
+function dxGrupo(inj){
+  return `${inj.tipo||'—'}${inj.estructura? ' - '+inj.estructura:''}`;
+}
 function onCirugiaToggle(){
   $("#if_cirugia_block").classList.toggle("hidden", !$("#if_reqcirugia").checked);
 }
@@ -1107,9 +1112,9 @@ function _renderStats(){
   const months = Object.keys(byMonth).sort().slice(-12);
   const monthItems = months.map(m=>({label:m.slice(2).replace('-','/'), value:byMonth[m]}));
 
-  // Diagnóstico más frecuente
+  // Diagnóstico más frecuente (agrupado por tipo+estructura, sin separar por lado ni grado)
   const byDx={};
-  injuries.forEach(i=>{ const k=(i.diagnostico||'—').trim(); byDx[k]=(byDx[k]||0)+1; });
+  injuries.forEach(i=>{ const k=dxGrupo(i); byDx[k]=(byDx[k]||0)+1; });
   const rankDx = Object.entries(byDx).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const maxDx = rankDx.length? rankDx[0][1] : 1;
 
@@ -1126,6 +1131,12 @@ function _renderStats(){
     const dias = inj.reduce((a,i)=>a+(daysBetween(i.fechaLesion,i.fechaAlta)||0),0);
     return {nombre:p.nombre, veces:inj.length, dias};
   }).filter(r=>r.veces>0).sort((a,b)=>b.dias-a.dias);
+
+  // Registro completo de lesiones del plantel, más recientes primero
+  const registro = injuries.map(i=>({
+    ...i,
+    nombreJugador: (DB.players[i.playerId]&&DB.players[i.playerId].nombre) || '—'
+  })).sort((a,b)=>(b.fechaLesion||"").localeCompare(a.fechaLesion||""));
 
   // Alarmas activas de todo el plantel
   const alertRows=[];
@@ -1208,12 +1219,30 @@ function _renderStats(){
         </table>
       ` : `<p class="muted small">Sin datos aún.</p>`}
     </div>
+
+    <div class="section">
+      <h3>Registro de lesiones (${registro.length})</h3>
+      ${registro.length? `
+        <div style="display:flex;flex-direction:column;gap:8px">
+          ${registro.map(r=>`
+            <div class="episode ${r.fechaAlta? 'closed':'open'}" style="margin-bottom:0">
+              <div class="etop">
+                <div class="edx">${esc(r.nombreJugador)}</div>
+                <div class="edays">${r.fechaAlta? fmtDuracion(daysBetween(r.fechaLesion,r.fechaAlta),true) : 'en curso'}</div>
+              </div>
+              <div class="small" style="font-weight:600;color:var(--verde-2)">${esc(r.diagnostico)}</div>
+              <div class="edates">Lesión: ${fmt(r.fechaLesion)}${r.fechaAlta? ' → Alta: '+fmt(r.fechaAlta):''}${r.fechaReintegro? ' → Reintegro: '+fmt(r.fechaReintegro):''}</div>
+            </div>
+          `).join("")}
+        </div>
+      ` : `<p class="muted small">Sin lesiones registradas todavía.</p>`}
+    </div>
   `;
   $("#viewStats").innerHTML=html;
 }
 
 /* ================= Boot ================= */
-const APP_BUILD = "2026-08-25-4";
+const APP_BUILD = "2026-08-25-5";
 function showLogin(){ $("#loginView").classList.remove("hidden"); $("#appView").classList.add("hidden"); const b=$("#loginBuild"); if(b) b.textContent="v"+APP_BUILD; }
 function showApp(){ $("#loginView").classList.add("hidden"); $("#appView").classList.remove("hidden"); const b=$("#headerBuild"); if(b) b.textContent="v"+APP_BUILD; render(); }
 
