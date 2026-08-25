@@ -79,6 +79,17 @@ window.__FB_CONFIG = {
   .toolbar select{padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff;color:var(--ink)}
 
   .list{display:flex;flex-direction:column;gap:8px}
+
+  /* Tablero por columnas (estilo Racing) */
+  .board{display:flex;flex-direction:column;gap:14px}
+  .col{background:#f7f9fb;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .col-head{display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid var(--line);
+    font-weight:700;font-size:13px}
+  .col-head .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .col-head .count{margin-left:auto;background:#fff;border:1px solid var(--line);color:var(--muted);
+    font-size:12px;border-radius:20px;padding:1px 9px;font-weight:700}
+  .col-body{padding:10px;display:flex;flex-direction:column;gap:9px}
+  .col-body .empty-col{text-align:center;padding:18px 10px;color:var(--muted);font-size:12.5px}
   .card{background:#fff;border:1px solid var(--line);border-left:4px solid var(--line);border-radius:12px;
     padding:12px 13px;box-shadow:var(--shadow);cursor:pointer;transition:.15s}
   .card:hover{box-shadow:0 4px 16px rgba(10,42,94,.14)}
@@ -534,6 +545,10 @@ function computeAlerts(pid){
 
   return alerts;
 }
+function computeAlertsSafe(pid){
+  try{ return computeAlerts(pid); }
+  catch(e){ console.error('Error en computeAlerts para', pid, e); return []; }
+}
 
 /* ================= View state ================= */
 let currentView="plantel", detailId=null, sessTipo="entrenamiento";
@@ -571,36 +586,45 @@ function _render(){
 function _renderPlantel(){
   const players=Object.entries(DB.players).map(([id,p])=>({id,...p}));
   players.forEach(p=>p._estado=computeEstado(p.id));
-  const filterEstado=($("#filtroEstado")&&$("#filtroEstado").value)||"";
   const q=(($("#buscador")&&$("#buscador").value)||"").toLowerCase();
 
-  const activos=players.filter(p=>p._estado==="activo").length;
-  const lesionados=players.filter(p=>p._estado==="lesionado").length;
-  const rehab=players.filter(p=>p._estado==="rehab").length;
-
   let filtered=players;
-  if(filterEstado) filtered=filtered.filter(p=>p._estado===filterEstado);
   if(q) filtered=filtered.filter(p=>(p.nombre||"").toLowerCase().includes(q));
   filtered.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+
+  const lesionados=filtered.filter(p=>p._estado==="lesionado");
+  const rehab=filtered.filter(p=>p._estado==="rehab");
+  const activos=filtered.filter(p=>p._estado==="activo");
+
+  const cols = [
+    {key:'lesionado', label:'Lesionados', dot:'var(--red)', items:lesionados},
+    {key:'rehab', label:'En rehab', dot:'var(--amber)', items:rehab},
+    {key:'activo', label:'Disponibles', dot:'var(--green)', items:activos},
+  ];
 
   const html = `
     <div class="kpis">
       <div class="kpi"><div class="n">${players.length}</div><div class="l">Plantel</div></div>
-      <div class="kpi warn"><div class="n">${lesionados}</div><div class="l">Lesionados</div></div>
-      <div class="kpi"><div class="n">${rehab}</div><div class="l">En rehab</div></div>
-      <div class="kpi"><div class="n">${activos}</div><div class="l">Disponibles</div></div>
+      <div class="kpi warn"><div class="n">${lesionados.length}</div><div class="l">Lesionados</div></div>
+      <div class="kpi"><div class="n">${rehab.length}</div><div class="l">En rehab</div></div>
+      <div class="kpi"><div class="n">${activos.length}</div><div class="l">Disponibles</div></div>
     </div>
     <div class="toolbar">
       <div class="search"><input id="buscador" placeholder="Buscar jugador…" oninput="renderPlantel()" value="${esc(q)}"></div>
-      <select id="filtroEstado" onchange="renderPlantel()">
-        <option value="">Todos</option>
-        <option value="activo" ${filterEstado==='activo'?'selected':''}>Activos</option>
-        <option value="lesionado" ${filterEstado==='lesionado'?'selected':''}>Lesionados</option>
-        <option value="rehab" ${filterEstado==='rehab'?'selected':''}>En rehab</option>
-      </select>
     </div>
-    <div class="list">
-      ${filtered.length? filtered.map(cardHTML).join("") : `<div class="empty"><h2>Sin jugadores</h2><p>Tocá el botón + para cargar el primero.</p></div>`}
+    <div class="board">
+      ${players.length? cols.map(c=>`
+        <div class="col">
+          <div class="col-head">
+            <span class="dot" style="background:${c.dot}"></span>
+            <span>${c.label}</span>
+            <span class="count">${c.items.length}</span>
+          </div>
+          <div class="col-body">
+            ${c.items.length? c.items.map(p=>{ try{return cardHTML(p);}catch(e){console.error('Error en ficha',p.id,e); return `<div class="card"><p class="small" style="color:var(--red)">⚠️ Error mostrando este jugador: ${esc(e.message)}</p></div>`;} }).join("") : `<div class="empty-col">Sin jugadores acá</div>`}
+          </div>
+        </div>
+      `).join("") : `<div class="empty"><h2>Sin jugadores</h2><p>Tocá el botón + para cargar el primero.</p></div>`}
     </div>
   `;
   $("#viewPlantel").innerHTML=html;
@@ -612,7 +636,7 @@ function cardHTML(p){
   const diasLesionado = open.length? Math.max(...open.map(o=>daysBetween(o.fechaLesion))) : null;
   const totalInj = playerInjuries(p.id).length;
   const lastSess = playerSessions(p.id)[0];
-  const alerts = computeAlerts(p.id);
+  const alerts = computeAlertsSafe(p.id);
   let lastText="";
   if(lastSess){
     if(lastSess.tipoRegistro==='evaluacion'){
@@ -715,14 +739,14 @@ function _renderDetail(){
     body+=`
       <div class="section">
         <h3>Historial de lesiones <button class="btn sm" onclick="openInjForm()">+ nueva</button></h3>
-        ${injuries.length? injuries.map(injEpisodeHTML).join("") : `<p class="muted small">Sin lesiones registradas.</p>`}
+        ${injuries.length? injuries.map(i=>{ try{return injEpisodeHTML(i);}catch(e){console.error('Error en lesion',i.id,e); return `<div class="episode"><p class="small" style="color:var(--red)">⚠️ Error mostrando esta lesión: ${esc(e.message)}</p></div>`;} }).join("") : `<p class="muted small">Sin lesiones registradas.</p>`}
       </div>
     `;
   } else if(detTab==='sesiones'){
     body+=`
       <div class="section">
         <h3>Bitácora <button class="btn sm" onclick="openSessForm()">+ nuevo</button></h3>
-        ${sessions.length? sessions.map(s=>sessHTML(s)).join("") : `<p class="muted small">Sin registros.</p>`}
+        ${sessions.length? sessions.map(s=>{ try{return sessHTML(s);}catch(e){console.error('Error en sesion',s.id,e); return `<div class="sess"><p class="small" style="color:var(--red)">⚠️ Error mostrando este registro: ${esc(e.message)}</p></div>`;} }).join("") : `<p class="muted small">Sin registros.</p>`}
       </div>
     `;
   } else if(detTab==='evolucion'){
@@ -811,38 +835,40 @@ function deleteSession(id){
 }
 
 /* ---- Evolución (rehab / carga interna) ---- */
+function safeSection(fn, label){
+  try { return fn(); }
+  catch(e){
+    console.error('Error en sección "'+label+'":', e);
+    return `<div class="section" style="border-left:4px solid var(--red)">
+      <p class="small" style="color:var(--red);font-weight:700;margin:0 0 4px">⚠️ No se pudo mostrar "${esc(label)}"</p>
+      <p class="small muted" style="margin:0">${esc(e && e.message || String(e))}</p>
+    </div>`;
+  }
+}
 function renderEvolucion(pid, sessions, injuries){
-  const trainings = sessions.filter(s=>s.tipoRegistro!=="evaluacion").slice().reverse();
-  const evals = sessions.filter(s=>s.tipoRegistro==="evaluacion").slice().reverse();
-  const allChrono = sessions.slice().reverse();
-
-  const cargaInterna = trainings.map(s=>({x:s.fecha, y:(num(s.duracion)||0)*(num(s.rpe)||0)})); // sRPE
-  const lsi = evals.filter(e=>e.lsi!=null).map(e=>({x:e.fecha, y:num(e.lsi)}));
-  const dolor = allChrono.filter(s=>s.eva!=null).map(s=>({x:s.fecha, y:num(s.eva)}));
-
   let html="";
 
-  const alerts = computeAlerts(pid);
-  if(alerts.length){
-    html += `<div class="section" style="border-left:4px solid var(--red)">
+  html += safeSection(()=>{
+    const alerts = computeAlertsSafe(pid);
+    if(!alerts.length) return "";
+    return `<div class="section" style="border-left:4px solid var(--red)">
       <h3>⚠️ Alarmas</h3>
       <div style="display:flex;flex-direction:column;gap:6px">
         ${alerts.map(a=>`<div class="small" style="color:${a.sev==='danger'?'var(--red)':'#b9760f'};font-weight:600">${esc(a.texto)}</div>`).join("")}
       </div>
     </div>`;
-  }
+  }, 'Alarmas');
 
-  // Lesión abierta: etapa actual, días lesionado, días hasta inicio de carrera
-  const open = injuries.find(i=>!i.fechaAlta);
-  if(open){
+  html += safeSection(()=>{
+    const open = injuries.find(i=>!i.fechaAlta);
+    if(!open) return "";
     const sesOfInj = sessions.filter(s=>s.injuryId===open.id).slice().sort((a,b)=>(a.fecha||"").localeCompare(b.fecha||""));
     const conEtapa = sesOfInj.filter(s=>s.etapa).slice().reverse();
     const etapaActual = conEtapa.length? conEtapa[0].etapa : null;
     const diasLesionado = daysBetween(open.fechaLesion);
     const primerCarrera = sesOfInj.find(s=>s.inicioCarrera);
     const diasHastaCarrera = primerCarrera? daysBetween(open.fechaLesion, primerCarrera.fecha) : null;
-
-    html += `<div class="section">
+    return `<div class="section">
       <h3>Lesión en curso</h3>
       <div class="edx" style="margin-bottom:8px">${esc(open.diagnostico)}</div>
       <div class="kpis" style="margin-bottom:0">
@@ -851,21 +877,42 @@ function renderEvolucion(pid, sessions, injuries){
         <div class="kpi"><div class="n">${diasHastaCarrera!=null? diasHastaCarrera : '—'}</div><div class="l">Días hasta correr</div></div>
       </div>
     </div>`;
-  }
+  }, 'Lesión en curso');
 
-  if(dolor.length) html+=`<div class="section"><h3>Dolor (EVA 0-10)</h3>${lineChartSVG(dolor,'#e24b4a',10)}</div>`;
-  html+=`<div class="section"><h3>Carga interna (sRPE = duración × RPE)</h3>${lineChartSVG(cargaInterna,'#123b7a')}</div>`;
-  if(lsi.length) html+=`<div class="section"><h3>LSI (%)</h3>${lineChartSVG(lsi,'#ef9f27',100)}</div>`;
+  html += safeSection(()=>{
+    const allChrono = sessions.slice().reverse();
+    const dolor = allChrono.filter(s=>s.eva!=null).map(s=>({x:s.fecha, y:num(s.eva)}));
+    if(!dolor.length) return "";
+    return `<div class="section"><h3>Dolor (EVA 0-10)</h3>${lineChartSVG(dolor,'#e24b4a',10)}</div>`;
+  }, 'Gráfico de dolor');
 
-  const totalDiasBaja = injuries.reduce((a,i)=> a + (daysBetween(i.fechaLesion,i.fechaAlta)||0), 0);
-  html += `<div class="section"><h3>Resumen histórico</h3>
-    <div class="grid2 small">
-      <div>Lesiones históricas: <b>${injuries.length}</b></div>
-      <div>Días totales de baja: <b>${fmtDuracion(totalDiasBaja)}</b></div>
-    </div>
-  </div>`;
+  html += safeSection(()=>{
+    const trainings = sessions.filter(s=>s.tipoRegistro!=="evaluacion").slice().reverse();
+    const cargaInterna = trainings.map(s=>({x:s.fecha, y:(num(s.duracion)||0)*(num(s.rpe)||0)}));
+    return `<div class="section"><h3>Carga interna (sRPE = duración × RPE)</h3>${lineChartSVG(cargaInterna,'#123b7a')}</div>`;
+  }, 'Carga interna');
+
+  html += safeSection(()=>{
+    const evals = sessions.filter(s=>s.tipoRegistro==="evaluacion").slice().reverse();
+    const lsi = evals.filter(e=>e.lsi!=null).map(e=>({x:e.fecha, y:num(e.lsi)}));
+    if(!lsi.length) return "";
+    return `<div class="section"><h3>LSI (%)</h3>${lineChartSVG(lsi,'#ef9f27',100)}</div>`;
+  }, 'LSI');
+
+  html += safeSection(()=>{
+    const totalDiasBaja = injuries.reduce((a,i)=> a + (daysBetween(i.fechaLesion,i.fechaAlta)||0), 0);
+    return `<div class="section"><h3>Resumen histórico</h3>
+      <div class="grid2 small">
+        <div>Lesiones históricas: <b>${injuries.length}</b></div>
+        <div>Días totales de baja: <b>${fmtDuracion(totalDiasBaja)}</b></div>
+      </div>
+    </div>`;
+  }, 'Resumen histórico');
+
+  if(!html.trim()) html = `<p class="muted small">Todavía no hay datos para mostrar en Evolución.</p>`;
   return html;
 }
+
 
 function lineChartSVG(points, color, fixedMax){
   points = points.filter(p=>p.x);
@@ -875,13 +922,13 @@ function lineChartSVG(points, color, fixedMax){
   const maxY = fixedMax || Math.max(1, ...ys);
   const stepX = points.length>1 ? (W-PAD*2)/(points.length-1) : 0;
   const coords = points.map((p,i)=>{
-    const x=PAD+i*stepX;
-    const y=H-PAD-((p.y||0)/maxY)*(H-PAD*2);
-    return {x,y,...p};
+    const px=PAD+i*stepX;
+    const py=H-PAD-((p.y||0)/maxY)*(H-PAD*2);
+    return {px, py, origX:p.x, origY:p.y};
   });
-  const path = coords.map((c,i)=> (i===0?"M":"L")+c.x.toFixed(1)+","+c.y.toFixed(1)).join(" ");
-  const dots = coords.map(c=>`<circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="3.5" fill="${color}"><title>${fmt(c.x)}: ${c.y}</title></circle>`).join("");
-  const labels = coords.map(c=>`<text x="${c.x.toFixed(1)}" y="${H-6}" font-size="9" fill="#6b7570" text-anchor="middle">${fmt(c.x).slice(0,5)}</text>`).join("");
+  const path = coords.map((c,i)=> (i===0?"M":"L")+c.px.toFixed(1)+","+c.py.toFixed(1)).join(" ");
+  const dots = coords.map(c=>`<circle cx="${c.px.toFixed(1)}" cy="${c.py.toFixed(1)}" r="3.5" fill="${color}"><title>${fmt(c.origX)}: ${c.origY}</title></circle>`).join("");
+  const labels = coords.map(c=>`<text x="${c.px.toFixed(1)}" y="${H-6}" font-size="9" fill="#6b7570" text-anchor="middle">${fmt(c.origX).slice(0,5)}</text>`).join("");
   return `<div class="chartwrap"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
     <line x1="${PAD}" y1="${H-PAD}" x2="${W-PAD}" y2="${H-PAD}" stroke="#e2e8e3"/>
     <path d="${path}" fill="none" stroke="${color}" stroke-width="2.5"/>
@@ -1141,7 +1188,7 @@ function _renderStats(){
   // Alarmas activas de todo el plantel
   const alertRows=[];
   players.forEach(p=>{
-    const a=computeAlerts(p.id);
+    const a=computeAlertsSafe(p.id);
     if(a.length) alertRows.push({nombre:p.nombre, alerts:a});
   });
   alertRows.sort((a,b)=> Math.max(...b.alerts.map(x=>x.sev==='danger'?2:1)) - Math.max(...a.alerts.map(x=>x.sev==='danger'?2:1)));
@@ -1242,7 +1289,7 @@ function _renderStats(){
 }
 
 /* ================= Boot ================= */
-const APP_BUILD = "2026-08-25-5";
+const APP_BUILD = "2026-08-25-6";
 function showLogin(){ $("#loginView").classList.remove("hidden"); $("#appView").classList.add("hidden"); const b=$("#loginBuild"); if(b) b.textContent="v"+APP_BUILD; }
 function showApp(){ $("#loginView").classList.add("hidden"); $("#appView").classList.remove("hidden"); const b=$("#headerBuild"); if(b) b.textContent="v"+APP_BUILD; render(); }
 
