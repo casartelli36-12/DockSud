@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Dock Sud · Kinesiología</title>
+<meta name="theme-color" content="#0a3d1f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Kine Dock Sud">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script>
+window.__FB_CONFIG = {
+  apiKey: "AIzaSyD0tAzvgnE8aQ5GnBebaJWy_FQCz1dGKHY",
+  authDomain: "docksud-d548a.firebaseapp.com",
+  databaseURL: "https://docksud-d548a-default-rtdb.firebaseio.com",
+  projectId: "docksud-d548a",
+  storageBucket: "docksud-d548a.firebasestorage.app",
+  messagingSenderId: "779495490317",
+  appId: "1:779495490317:web:4856dac1429acb7072e644"
+};
+</script>
+<style>
+  :root{
+    --verde:#0a3d1f; --verde-2:#0f5c2e; --verde-claro:#4caf50; --verde-soft:#eaf7ee;
+    --ink:#1b2320; --muted:#6b7570; --line:#e2e8e3; --bg:#eef2ef; --white:#fff;
+    --red:#e24b4a; --amber:#ef9f27; --blue:#378add; --green:#1d9e75;
+    --radius:12px; --shadow:0 1px 3px rgba(10,61,31,.08),0 6px 20px rgba(10,61,31,.06);
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;}
+  button{font-family:inherit;cursor:pointer}
+  input,select,textarea{font-family:inherit}
+
+  header.app{background:var(--verde);color:#fff;padding:12px 14px;display:flex;align-items:center;gap:10px;
+    position:sticky;top:0;z-index:20;border-bottom:3px solid var(--verde-claro)}
+  .h-titles{line-height:1.15;flex:1;min-width:0}
+  .h-eyebrow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--verde-claro);font-weight:700}
+  .h-title{font-size:16px;font-weight:700}
+  .h-actions{display:flex;gap:6px;flex-wrap:wrap}
+
+  .btn{border:1px solid transparent;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;
+    background:var(--verde-claro);color:#fff;transition:.15s;white-space:nowrap}
+  .btn:hover{background:#3d9942}
+  .btn.ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.35)}
+  .btn.ghost:hover{background:rgba(255,255,255,.12)}
+  .btn.line{background:#fff;color:var(--verde);border-color:var(--line)}
+  .btn.line:hover{background:var(--verde-soft)}
+  .btn.danger{background:#fff;color:var(--red);border-color:#f1c9c9}
+  .btn.danger:hover{background:#fdecec}
+  .btn.sm{padding:6px 9px;font-size:12px}
+  .btn.block{width:100%}
+
+  main{max-width:900px;margin:0 auto;padding:12px}
+
+  /* Nav tabs */
+  .navtabs{display:flex;gap:6px;background:#fff;border:1px solid var(--line);border-radius:10px;
+    padding:4px;margin-bottom:12px;position:sticky;top:52px;z-index:15;box-shadow:var(--shadow)}
+  .navtabs button{flex:1;background:transparent;border:none;padding:9px 4px;border-radius:8px;
+    font-size:12.5px;font-weight:700;color:var(--muted)}
+  .navtabs button.active{background:var(--verde);color:#fff}
+
+  .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
+  @media(min-width:640px){.kpis{grid-template-columns:repeat(4,1fr)}}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:12px;box-shadow:var(--shadow)}
+  .kpi .n{font-size:24px;font-weight:800;color:var(--verde);line-height:1}
+  .kpi .l{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:5px;font-weight:600}
+  .kpi.warn .n{color:var(--red)}
+
+  .toolbar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+  .search{flex:1;min-width:140px}
+  .search input{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff}
+  .toolbar select{padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff;color:var(--ink)}
+
+  .list{display:flex;flex-direction:column;gap:8px}
+  .card{background:#fff;border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;
+    padding:11px 12px;box-shadow:var(--shadow);cursor:pointer}
+  .card:active{transform:scale(.995)}
+  .card.st-activo{border-left-color:var(--green)}
+  .card.st-lesionado{border-left-color:var(--red)}
+  .card.st-rehab{border-left-color:var(--amber)}
+  .card .row1{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .card .name{font-weight:700;font-size:14.5px;color:var(--verde)}
+  .card .pos{font-size:11.5px;color:var(--muted);margin-top:1px}
+  .badge{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap}
+  .badge.activo{background:#e6f7ec;color:var(--green)}
+  .badge.lesionado{background:#fdecec;color:var(--red)}
+  .badge.rehab{background:#fef3e0;color:#b9760f}
+  .card .dx{font-size:12px;color:var(--muted);margin-top:6px}
+  .card .meta{display:flex;gap:12px;margin-top:8px;font-size:11px;color:var(--muted)}
+  .card .meta b{color:var(--ink)}
+
+  .empty{text-align:center;padding:50px 16px;color:var(--muted)}
+  .empty h2{color:var(--verde);font-size:17px;margin:0 0 6px}
+
+  .section{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:14px;
+    box-shadow:var(--shadow);margin-bottom:12px}
+  .section h3{margin:0 0 10px;font-size:14px;color:var(--verde);display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .section h3 .btn{font-weight:600}
+
+  .field{margin-bottom:10px}
+  .field label{display:block;font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:4px;
+    text-transform:uppercase;letter-spacing:.03em}
+  .field input,.field select,.field textarea{width:100%;padding:9px 10px;border:1px solid var(--line);
+    border-radius:8px;font-size:14px;background:#fff}
+  .field textarea{resize:vertical;min-height:56px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+
+  .overlay{position:fixed;inset:0;background:rgba(8,20,12,.55);display:none;align-items:flex-start;
+    justify-content:center;padding:0;z-index:40;overflow:auto}
+  .overlay.open{display:flex}
+  .modal{background:#fff;width:100%;max-width:640px;min-height:100vh;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden}
+  @media(min-width:660px){.modal{min-height:0;margin-top:24px;border-radius:16px;animation:pop .16s ease}}
+  @keyframes pop{from{transform:translateY(8px);opacity:.6}to{transform:none;opacity:1}}
+  .modal-head{background:var(--verde);color:#fff;padding:14px 16px;display:flex;align-items:center;
+    gap:10px;position:sticky;top:0;z-index:2}
+  .modal-head h2{margin:0;font-size:15px;flex:1}
+  .modal-x{background:rgba(255,255,255,.15);border:none;color:#fff;width:30px;height:30px;border-radius:8px;font-size:16px}
+  .modal-body{padding:14px}
+
+  .subtabs{display:flex;gap:4px;background:var(--verde-soft);border-radius:9px;padding:3px;margin-bottom:12px}
+  .subtabs button{flex:1;background:transparent;border:none;padding:8px 4px;border-radius:7px;font-size:12px;
+    font-weight:700;color:var(--verde-2)}
+  .subtabs button.active{background:var(--verde);color:#fff}
+
+  .episode{background:#fafcfa;border:1px solid var(--line);border-radius:10px;padding:11px;margin-bottom:9px}
+  .episode.open{border-left:4px solid var(--red)}
+  .episode.closed{border-left:4px solid var(--green)}
+  .episode .etop{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+  .episode .edx{font-weight:700;font-size:13.5px;color:var(--verde)}
+  .episode .edates{font-size:11.5px;color:var(--muted)}
+  .episode .edays{font-size:11px;font-weight:700;color:var(--red)}
+  .episode.closed .edays{color:var(--green)}
+  .episode .eactions{display:flex;gap:6px;margin-top:8px}
+
+  .sess{background:#fafcfa;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px}
+  .sess .stop{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px}
+  .sess .stype{font-weight:700;color:var(--verde-2)}
+  .sess .srow{display:flex;flex-wrap:wrap;gap:6px;font-size:11.5px}
+  .chip{background:#fff;border:1px solid var(--line);border-radius:20px;padding:3px 9px;color:var(--ink)}
+
+  .exrow{border:1px solid var(--line);border-radius:9px;padding:8px;margin-bottom:7px;background:#fff}
+  .exrow .extop{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:6px}
+  .exrow .extop input[type=text]{flex:1;border:none;border-bottom:1px solid var(--line);padding:4px 2px;font-weight:700;font-size:13px}
+  .exrow .toggle-run{background:var(--verde-soft);border:1px solid var(--verde-claro);border-radius:7px;
+    padding:4px 7px;font-size:14px}
+  .exrow .toggle-run.on{background:var(--verde);color:#fff}
+  .exrow .exgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+  .exrow .exgrid input{padding:6px;font-size:12.5px;border:1px solid var(--line);border-radius:6px;text-align:center}
+  .exrow .exlbl{font-size:9px;color:var(--muted);text-align:center;text-transform:uppercase}
+  .exrow .rm{background:none;border:none;color:var(--red);font-size:16px;padding:2px 6px}
+
+  .rank{display:flex;flex-direction:column;gap:7px}
+  .rank .ritem{display:flex;align-items:center;gap:9px}
+  .rank .rn{font-weight:800;color:var(--verde);font-size:13px;width:18px}
+  .rank .rname{flex:1;font-size:13px;font-weight:600}
+  .rank .rbarwrap{flex:2;background:var(--verde-soft);border-radius:6px;height:16px;overflow:hidden}
+  .rank .rbar{background:var(--verde-claro);height:100%;border-radius:6px}
+  .rank .rval{font-size:12px;font-weight:700;color:var(--verde);width:24px;text-align:right}
+
+  .chartwrap{overflow-x:auto}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--verde);
+    color:#fff;padding:10px 18px;border-radius:30px;font-size:13px;font-weight:600;opacity:0;
+    transition:.25s;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--verde);padding:20px}
+  .login-box{background:#fff;border-radius:16px;padding:28px 22px;width:100%;max-width:340px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .login-box h1{color:var(--verde);font-size:18px;margin:0 0 2px;text-align:center}
+  .login-box p{color:var(--muted);font-size:12.5px;text-align:center;margin:0 0 18px}
+  .login-err{color:var(--red);font-size:12.5px;margin-top:6px;min-height:16px}
+  .hidden{display:none !important}
+  .muted{color:var(--muted)}
+  .small{font-size:11.5px}
+  .fab-add{position:fixed;bottom:18px;right:18px;background:var(--verde);color:#fff;border:none;
+    width:52px;height:52px;border-radius:50%;font-size:26px;box-shadow:0 6px 20px rgba(10,61,31,.4);z-index:10}
+</style>
+</head>
+<body>
+
+<div id="loginView" class="login-wrap hidden">
+  <div class="login-box">
+    <h1>Dock Sud · Kinesiología</h1>
+    <p>Ingresá con tu cuenta del departamento</p>
+    <div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username"></div>
+    <div class="field"><label>Contraseña</label><input id="loginPass" type="password" autocomplete="current-password"></div>
+    <button class="btn block" onclick="doLogin()">Ingresar</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<div id="appView" class="hidden">
+  <header class="app">
+    <div class="h-titles">
+      <div class="h-eyebrow">C.A. Dock Sud</div>
+      <div class="h-title">Kinesiología</div>
+    </div>
+    <div class="h-actions">
+      <button class="btn ghost sm" onclick="doLogout()">Salir</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="navtabs">
+      <button id="tabPlantel" class="active" onclick="setView('plantel')">Plantel</button>
+      <button id="tabStats" onclick="setView('stats')">Estadísticas</button>
+    </div>
+
+    <div id="viewPlantel"></div>
+    <div id="viewStats" class="hidden"></div>
+  </main>
+
+  <button class="fab-add" onclick="openPlayerForm()" title="Nuevo jugador">+</button>
+</div>
+
+<!-- Player detail modal -->
+<div class="overlay" id="detOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="detName">Jugador</h2>
+      <button class="modal-x" onclick="closeDetail()">✕</button>
+    </div>
+    <div class="modal-body" id="detBody"></div>
+  </div>
+</div>
+
+<!-- Player form modal -->
+<div class="overlay" id="playerFormOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="playerFormTitle">Nuevo jugador</h2>
+      <button class="modal-x" onclick="closePlayerForm()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Nombre y apellido *</label><input id="pf_nombre"></div>
+      <div class="grid2">
+        <div class="field"><label>Posición</label>
+          <select id="pf_posicion">
+            <option value="">—</option>
+            <option>Arquero</option><option>Defensor</option><option>Mediocampista</option><option>Delantero</option>
+          </select>
+        </div>
+        <div class="field"><label>Fecha nacimiento</label><input id="pf_fnac" type="date"></div>
+      </div>
+      <div class="field"><label>Notas / características</label><textarea id="pf_notas"></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button class="btn line block" onclick="closePlayerForm()">Cancelar</button>
+        <button class="btn block" onclick="savePlayer()">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Injury (episodio) form modal -->
+<div class="overlay" id="injFormOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="injFormTitle">Nueva lesión</h2>
+      <button class="modal-x" onclick="closeInjForm()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Diagnóstico / Lesión *</label><input id="if_dx" placeholder="Ej: Rotura fibrilar isquiotibial"></div>
+      <div class="grid2">
+        <div class="field"><label>Estructura anatómica</label><input id="if_estructura" placeholder="Ej: Bíceps femoral"></div>
+        <div class="field"><label>Mecanismo</label>
+          <select id="if_mecanismo"><option value="">—</option><option>Traumático</option><option>Sobreuso</option><option>Reagudización</option></select>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Fecha de lesión *</label><input id="if_flesion" type="date"></div>
+        <div class="field"><label>Fecha de alta</label><input id="if_falta" type="date"></div>
+      </div>
+      <div class="field"><label>Antecedente</label><input id="if_antecedente"></div>
+      <div class="grid2">
+        <div class="field"><label>Fecha de cirugía</label><input id="if_fcirugia" type="date"></div>
+        <div class="field"><label>Técnica quirúrgica</label><input id="if_tecnica"></div>
+      </div>
+      <div class="field"><label>Kinesiólogo responsable</label><input id="if_kine"></div>
+      <div class="field"><label>Notas</label><textarea id="if_notas"></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button class="btn line block" onclick="closeInjForm()">Cancelar</button>
+        <button class="btn block" onclick="saveInjury()">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Session form modal -->
+<div class="overlay" id="sessFormOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Nuevo registro</h2>
+      <button class="modal-x" onclick="closeSessForm()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="subtabs">
+        <button id="stTipoEntreno" class="active" onclick="setSessTipo('entrenamiento')">Entrenamiento</button>
+        <button id="stTipoEval" onclick="setSessTipo('evaluacion')">Evaluación</button>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Fecha *</label><input id="sf_fecha" type="date"></div>
+        <div class="field"><label>Vincular a lesión</label><select id="sf_injury"><option value="">— General —</option></select></div>
+      </div>
+      <div id="sf_entreno_block">
+        <div class="grid2">
+          <div class="field"><label>Duración (min)</label><input id="sf_duracion" type="number" min="0"></div>
+          <div class="field"><label>RPE sesión (0-10)</label><input id="sf_rpe" type="number" min="0" max="10"></div>
+        </div>
+        <div class="section" style="padding:10px;margin-bottom:10px">
+          <h3>Ejercicios <button class="btn sm" onclick="addExRow()">+ agregar</button></h3>
+          <div id="exList"></div>
+        </div>
+      </div>
+      <div id="sf_eval_block" class="hidden">
+        <div class="grid2">
+          <div class="field"><label>LSI (%)</label><input id="sf_lsi" type="number" min="0" max="150"></div>
+          <div class="field"><label>EVA dolor (0-10)</label><input id="sf_eva" type="number" min="0" max="10"></div>
+        </div>
+      </div>
+      <div class="field"><label>Notas</label><textarea id="sf_notas"></textarea></div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button class="btn line block" onclick="closeSessForm()">Cancelar</button>
+        <button class="btn block" onclick="saveSession()">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= Firebase / Auth ================= */
+let auth, db, DB = {players:{}, injuries:{}, sessions:{}}, currentUser=null;
+let saveTimer=null;
+
+function initFirebase(){
+  if(typeof firebase==="undefined") return false;
+  firebase.initializeApp(window.__FB_CONFIG);
+  auth=firebase.auth(); db=firebase.database();
+  return true;
+}
+
+function doLogin(){
+  const email=$("#loginEmail").value.trim(), pass=$("#loginPass").value;
+  $("#loginErr").textContent="";
+  if(!email||!pass){ $("#loginErr").textContent="Completá email y contraseña."; return; }
+  auth.signInWithEmailAndPassword(email,pass).catch(e=>{
+    $("#loginErr").textContent=mapAuthErr(e);
+  });
+}
+function doLogout(){ if(auth) auth.signOut(); }
+function mapAuthErr(e){
+  const c=e.code||"";
+  if(c.includes("wrong-password")||c.includes("invalid-credential")) return "Contraseña incorrecta.";
+  if(c.includes("user-not-found")) return "No existe ese usuario.";
+  if(c.includes("invalid-email")) return "Email inválido.";
+  return "Error al ingresar. Probá de nuevo.";
+}
+
+function bindData(){
+  db.ref("docksud").on("value", snap=>{
+    const v=snap.val()||{};
+    DB.players=v.players||{};
+    DB.injuries=v.injuries||{};
+    DB.sessions=v.sessions||{};
+    normalizarDB();
+    render();
+  });
+}
+function save(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{ db.ref("docksud").set(DB).catch(e=>toast("Error al guardar: "+e.message)); },300);
+}
+function normalizarDB(){
+  DB.players=DB.players||{}; DB.injuries=DB.injuries||{}; DB.sessions=DB.sessions||{};
+  Object.values(DB.players).forEach(p=>{ if(!p.estado) p.estado="activo"; });
+  Object.values(DB.injuries).forEach(inj=>{ if(!inj.notas) inj.notas=inj.notas||""; });
+}
+
+/* ================= Helpers ================= */
+function $(s,ctx){ return (ctx||document).querySelector(s); }
+function $all(s,ctx){ return Array.from((ctx||document).querySelectorAll(s)); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function esc(s){ return (s==null?"":String(s)).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function fmt(d){ if(!d) return "—"; const [y,m,dd]=d.split("-"); return `${dd}/${m}/${y.slice(2)}`; }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function daysBetween(a,b){ if(!a) return null; const end=b?new Date(b):new Date(); return Math.round((end-new Date(a))/86400000); }
+function num(v){ return (v!==""&&v!=null&&!isNaN(v))? +v : null; }
+function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("show"),2200); }
+
+function playerInjuries(pid){ return Object.entries(DB.injuries).filter(([id,i])=>i.playerId===pid).map(([id,i])=>({id,...i})); }
+function openInjuriesOf(pid){ return playerInjuries(pid).filter(i=>!i.fechaAlta); }
+function playerSessions(pid){ return Object.entries(DB.sessions).filter(([id,s])=>s.playerId===pid).map(([id,s])=>({id,...s})).sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||"")); }
+function computeEstado(pid){
+  const open=openInjuriesOf(pid);
+  if(open.length===0) return "activo";
+  // si hay sesiones recientes de rehab en los ultimos 7 dias -> "rehab", si no "lesionado"
+  const recentRehab = playerSessions(pid).some(s=> s.injuryId && open.some(o=>o.id===s.injuryId) && daysBetween(s.fecha)<=7 );
+  return recentRehab ? "rehab" : "lesionado";
+}
+
+/* ================= View state ================= */
+let currentView="plantel", detailId=null, sessTipo="entrenamiento", exRows=[];
+
+function setView(v){
+  currentView=v;
+  $("#tabPlantel").classList.toggle("active", v==="plantel");
+  $("#tabStats").classList.toggle("active", v==="stats");
+  $("#viewPlantel").classList.toggle("hidden", v!=="plantel");
+  $("#viewStats").classList.toggle("hidden", v!=="stats");
+  render();
+}
+
+function render(){
+  if(currentView==="plantel") renderPlantel(); else renderStats();
+}
+
+/* ================= Plantel ================= */
+function renderPlantel(){
+  const players=Object.entries(DB.players).map(([id,p])=>({id,...p}));
+  players.forEach(p=>p._estado=computeEstado(p.id));
+  const filterEstado=($("#filtroEstado")&&$("#filtroEstado").value)||"";
+  const q=(($("#buscador")&&$("#buscador").value)||"").toLowerCase();
+
+  const activos=players.filter(p=>p._estado==="activo").length;
+  const lesionados=players.filter(p=>p._estado==="lesionado").length;
+  const rehab=players.filter(p=>p._estado==="rehab").length;
+
+  let filtered=players;
+  if(filterEstado) filtered=filtered.filter(p=>p._estado===filterEstado);
+  if(q) filtered=filtered.filter(p=>(p.nombre||"").toLowerCase().includes(q));
+  filtered.sort((a,b)=>(a.nombre||"").localeCompare(b.nombre||""));
+
+  const html = `
+    <div class="kpis">
+      <div class="kpi"><div class="n">${players.length}</div><div class="l">Plantel</div></div>
+      <div class="kpi warn"><div class="n">${lesionados}</div><div class="l">Lesionados</div></div>
+      <div class="kpi"><div class="n">${rehab}</div><div class="l">En rehab</div></div>
+      <div class="kpi"><div class="n">${activos}</div><div class="l">Disponibles</div></div>
+    </div>
+    <div class="toolbar">
+      <div class="search"><input id="buscador" placeholder="Buscar jugador…" oninput="renderPlantel()" value="${esc(q)}"></div>
+      <select id="filtroEstado" onchange="renderPlantel()">
+        <option value="">Todos</option>
+        <option value="activo" ${filterEstado==='activo'?'selected':''}>Activos</option>
+        <option value="lesionado" ${filterEstado==='lesionado'?'selected':''}>Lesionados</option>
+        <option value="rehab" ${filterEstado==='rehab'?'selected':''}>En rehab</option>
+      </select>
+    </div>
+    <div class="list">
+      ${filtered.length? filtered.map(cardHTML).join("") : `<div class="empty"><h2>Sin jugadores</h2><p>Tocá el botón + para cargar el primero.</p></div>`}
+    </div>
+  `;
+  $("#viewPlantel").innerHTML=html;
+}
+
+function cardHTML(p){
+  const open=openInjuriesOf(p.id);
+  const dx = open.length? open.map(o=>o.diagnostico).join(", ") : "";
+  const totalInj = playerInjuries(p.id).length;
+  return `
+    <div class="card st-${p._estado}" onclick="openDetail('${p.id}')">
+      <div class="row1">
+        <div>
+          <div class="name">${esc(p.nombre||"Sin nombre")}</div>
+          <div class="pos">${esc(p.posicion||"—")}</div>
+        </div>
+        <span class="badge ${p._estado}">${p._estado==='activo'?'Disponible':p._estado==='rehab'?'En rehab':'Lesionado'}</span>
+      </div>
+      ${dx? `<div class="dx">🩹 ${esc(dx)}</div>`:""}
+      <div class="meta"><span>Lesiones históricas: <b>${totalInj}</b></span></div>
+    </div>
+  `;
+}
+
+/* ---- Player form ---- */
+let editingPlayerId=null;
+function openPlayerForm(id){
+  editingPlayerId=id||null;
+  const p = id? DB.players[id] : {};
+  $("#playerFormTitle").textContent = id? "Editar jugador":"Nuevo jugador";
+  $("#pf_nombre").value=p.nombre||"";
+  $("#pf_posicion").value=p.posicion||"";
+  $("#pf_fnac").value=p.fnac||"";
+  $("#pf_notas").value=p.notas||"";
+  $("#playerFormOverlay").classList.add("open");
+}
+function closePlayerForm(){ $("#playerFormOverlay").classList.remove("open"); }
+function savePlayer(){
+  const nombre=$("#pf_nombre").value.trim();
+  if(!nombre){ toast("Falta el nombre"); return; }
+  const id=editingPlayerId||uid();
+  DB.players[id]={
+    ...(DB.players[id]||{}),
+    nombre, posicion:$("#pf_posicion").value, fnac:$("#pf_fnac").value, notas:$("#pf_notas").value,
+    estado: (DB.players[id]&&DB.players[id].estado)||"activo"
+  };
+  save(); closePlayerForm(); renderPlantel();
+  if(detailId===id) openDetail(id);
+  toast("Jugador guardado");
+}
+function deletePlayer(id){
+  if(!confirm("¿Eliminar jugador y todo su historial? Esta acción no se puede deshacer.")) return;
+  delete DB.players[id];
+  Object.keys(DB.injuries).forEach(k=>{ if(DB.injuries[k].playerId===id) delete DB.injuries[k]; });
+  Object.keys(DB.sessions).forEach(k=>{ if(DB.sessions[k].playerId===id) delete DB.sessions[k]; });
+  save(); closeDetail(); renderPlantel();
+}
+
+/* ================= Detail modal ================= */
+let detTab="ficha";
+function openDetail(id){
+  detailId=id; detTab="ficha";
+  renderDetail();
+  $("#detOverlay").classList.add("open");
+}
+function closeDetail(){ $("#detOverlay").classList.remove("open"); detailId=null; }
+
+function renderDetail(){
+  const p=DB.players[detailId]; if(!p) return closeDetail();
+  $("#detName").textContent=p.nombre;
+  const injuries=playerInjuries(detailId).sort((a,b)=>(b.fechaLesion||"").localeCompare(a.fechaLesion||""));
+  const sessions=playerSessions(detailId);
+
+  let body=`
+    <div class="subtabs">
+      <button class="${detTab==='ficha'?'active':''}" onclick="detTab='ficha';renderDetail()">Ficha</button>
+      <button class="${detTab==='lesiones'?'active':''}" onclick="detTab='lesiones';renderDetail()">Lesiones</button>
+      <button class="${detTab==='sesiones'?'active':''}" onclick="detTab='sesiones';renderDetail()">Sesiones</button>
+      <button class="${detTab==='evolucion'?'active':''}" onclick="detTab='evolucion';renderDetail()">Evolución</button>
+    </div>
+  `;
+
+  if(detTab==='ficha'){
+    body+=`
+      <div class="section">
+        <h3>Datos <button class="btn sm line" onclick="openPlayerForm('${detailId}')">Editar</button></h3>
+        <div class="small muted">Posición</div><div style="margin-bottom:8px">${esc(p.posicion||"—")}</div>
+        <div class="small muted">Fecha de nacimiento</div><div style="margin-bottom:8px">${fmt(p.fnac)}</div>
+        <div class="small muted">Notas</div><div>${esc(p.notas||"—")}</div>
+      </div>
+      <button class="btn danger block" onclick="deletePlayer('${detailId}')">Eliminar jugador</button>
+    `;
+  } else if(detTab==='lesiones'){
+    body+=`
+      <div class="section">
+        <h3>Historial de lesiones <button class="btn sm" onclick="openInjForm()">+ nueva</button></h3>
+        ${injuries.length? injuries.map(injEpisodeHTML).join("") : `<p class="muted small">Sin lesiones registradas.</p>`}
+      </div>
+    `;
+  } else if(detTab==='sesiones'){
+    body+=`
+      <div class="section">
+        <h3>Bitácora <button class="btn sm" onclick="openSessForm()">+ nuevo</button></h3>
+        ${sessions.length? sessions.map(s=>sessHTML(s)).join("") : `<p class="muted small">Sin registros.</p>`}
+      </div>
+    `;
+  } else if(detTab==='evolucion'){
+    body+=renderEvolucion(detailId, sessions, injuries);
+  }
+
+  $("#detBody").innerHTML=body;
+}
+
+function injEpisodeHTML(inj){
+  const dias = daysBetween(inj.fechaLesion, inj.fechaAlta);
+  const semanas = dias!=null? (dias/7).toFixed(1) : null;
+  const cls = inj.fechaAlta? "closed":"open";
+  return `
+    <div class="episode ${cls}">
+      <div class="etop">
+        <div class="edx">${esc(inj.diagnostico)}</div>
+        <div class="edays">${dias!=null? `${dias} d · ${semanas} sem` : "en curso"}</div>
+      </div>
+      <div class="edates">Lesión: ${fmt(inj.fechaLesion)} ${inj.fechaAlta? " → Alta: "+fmt(inj.fechaAlta) : ""}</div>
+      ${inj.estructura? `<div class="small muted">Estructura: ${esc(inj.estructura)}</div>`:""}
+      ${inj.mecanismo? `<div class="small muted">Mecanismo: ${esc(inj.mecanismo)}</div>`:""}
+      ${inj.tecnica? `<div class="small muted">Cirugía: ${esc(inj.tecnica)} (${fmt(inj.fechaCirugia)})</div>`:""}
+      ${inj.notas? `<div class="small" style="margin-top:4px">${esc(inj.notas)}</div>`:""}
+      <div class="eactions">
+        <button class="btn sm line" onclick="openInjForm('${inj.id}')">Editar</button>
+        ${!inj.fechaAlta? `<button class="btn sm" onclick="darAlta('${inj.id}')">Dar de alta hoy</button>`:""}
+        <button class="btn sm danger" onclick="deleteInjury('${inj.id}')">Eliminar</button>
+      </div>
+    </div>
+  `;
+}
+function darAlta(injId){
+  DB.injuries[injId].fechaAlta=todayISO();
+  save(); renderDetail(); renderPlantel();
+  toast("Alta registrada");
+}
+function deleteInjury(injId){
+  if(!confirm("¿Eliminar esta lesión?")) return;
+  delete DB.injuries[injId];
+  save(); renderDetail(); renderPlantel();
+}
+
+function sessHTML(s){
+  const isEval = s.tipoRegistro==="evaluacion";
+  let chips=[];
+  if(isEval){
+    if(s.lsi!=null) chips.push(`LSI ${s.lsi}%`);
+    if(s.eva!=null) chips.push(`EVA ${s.eva}`);
+  } else {
+    if(s.duracion) chips.push(`${s.duracion} min`);
+    if(s.rpe!=null) chips.push(`RPE ${s.rpe}`);
+    const totalM = (s.ejercicios||[]).filter(e=>e.esCarrera).reduce((a,e)=>a+(num(e.distancia)||0)*(num(e.pasadas)||1),0);
+    if(totalM) chips.push(`${Math.round(totalM)} m`);
+  }
+  const inj = s.injuryId? DB.injuries[s.injuryId] : null;
+  return `
+    <div class="sess">
+      <div class="stop">
+        <span class="stype">${isEval?'📋 Evaluación':'🏋️ Entrenamiento'} · ${fmt(s.fecha)}</span>
+        <button class="btn sm danger" onclick="deleteSession('${s.id}')">✕</button>
+      </div>
+      <div class="srow">${chips.map(c=>`<span class="chip">${esc(c)}</span>`).join("")}</div>
+      ${inj? `<div class="small muted" style="margin-top:5px">Vinculado a: ${esc(inj.diagnostico)}</div>`:""}
+      ${s.notas? `<div class="small" style="margin-top:5px">${esc(s.notas)}</div>`:""}
+    </div>
+  `;
+}
+function deleteSession(id){
+  if(!confirm("¿Eliminar este registro?")) return;
+  delete DB.sessions[id];
+  save(); renderDetail();
+}
+
+/* ---- Evolución (carga interna / externa) ---- */
+function renderEvolucion(pid, sessions, injuries){
+  const trainings = sessions.filter(s=>s.tipoRegistro!=="evaluacion").slice().reverse();
+  const evals = sessions.filter(s=>s.tipoRegistro==="evaluacion").slice().reverse();
+
+  const cargaInterna = trainings.map(s=>({x:s.fecha, y:(num(s.duracion)||0)*(num(s.rpe)||0)})); // sRPE
+  const cargaExterna = trainings.map(s=>({x:s.fecha, y:(s.ejercicios||[]).filter(e=>e.esCarrera).reduce((a,e)=>a+(num(e.distancia)||0)*(num(e.pasadas)||1),0)}));
+  const lsi = evals.filter(e=>e.lsi!=null).map(e=>({x:e.fecha, y:num(e.lsi)}));
+
+  let html=`<div class="section"><h3>Carga interna (sRPE = duración × RPE)</h3>${lineChartSVG(cargaInterna,'#0f5c2e')}</div>`;
+  html+=`<div class="section"><h3>Carga externa (metros recorridos)</h3>${lineChartSVG(cargaExterna,'#378add')}</div>`;
+  if(lsi.length) html+=`<div class="section"><h3>LSI (%)</h3>${lineChartSVG(lsi,'#ef9f27',100)}</div>`;
+
+  const totalDiasBaja = injuries.reduce((a,i)=> a + (daysBetween(i.fechaLesion,i.fechaAlta)||0), 0);
+  html += `<div class="section"><h3>Resumen</h3>
+    <div class="grid2 small">
+      <div>Lesiones históricas: <b>${injuries.length}</b></div>
+      <div>Días totales de baja: <b>${totalDiasBaja}</b></div>
+    </div>
+  </div>`;
+  return html;
+}
+
+function lineChartSVG(points, color, fixedMax){
+  points = points.filter(p=>p.x);
+  if(!points.length) return `<p class="muted small">Sin datos aún.</p>`;
+  const W=Math.max(280, points.length*46), H=140, PAD=26;
+  const ys = points.map(p=>p.y||0);
+  const maxY = fixedMax || Math.max(1, ...ys);
+  const stepX = points.length>1 ? (W-PAD*2)/(points.length-1) : 0;
+  const coords = points.map((p,i)=>{
+    const x=PAD+i*stepX;
+    const y=H-PAD-((p.y||0)/maxY)*(H-PAD*2);
+    return {x,y,...p};
+  });
+  const path = coords.map((c,i)=> (i===0?"M":"L")+c.x.toFixed(1)+","+c.y.toFixed(1)).join(" ");
+  const dots = coords.map(c=>`<circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="3.5" fill="${color}"><title>${fmt(c.x)}: ${c.y}</title></circle>`).join("");
+  const labels = coords.map(c=>`<text x="${c.x.toFixed(1)}" y="${H-6}" font-size="9" fill="#6b7570" text-anchor="middle">${fmt(c.x).slice(0,5)}</text>`).join("");
+  return `<div class="chartwrap"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <line x1="${PAD}" y1="${H-PAD}" x2="${W-PAD}" y2="${H-PAD}" stroke="#e2e8e3"/>
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="2.5"/>
+    ${dots}${labels}
+  </svg></div>`;
+}
+
+function barChartSVG(items, color){ // items: [{label, value}]
+  if(!items.length) return `<p class="muted small">Sin datos aún.</p>`;
+  const W=Math.max(280, items.length*54), H=150, PAD=26;
+  const maxV=Math.max(1,...items.map(i=>i.value));
+  const bw=(W-PAD*2)/items.length*0.6;
+  const step=(W-PAD*2)/items.length;
+  const bars=items.map((it,i)=>{
+    const h=((it.value)/maxV)*(H-PAD*2-14);
+    const x=PAD+i*step+(step-bw)/2;
+    const y=H-PAD-h;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${color}" rx="3"/>
+      <text x="${(x+bw/2).toFixed(1)}" y="${(y-4).toFixed(1)}" font-size="10" fill="#1b2320" text-anchor="middle" font-weight="700">${it.value}</text>
+      <text x="${(x+bw/2).toFixed(1)}" y="${H-8}" font-size="9" fill="#6b7570" text-anchor="middle">${esc(it.label)}</text>`;
+  }).join("");
+  return `<div class="chartwrap"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <line x1="${PAD}" y1="${H-PAD}" x2="${W-PAD}" y2="${H-PAD}" stroke="#e2e8e3"/>
+    ${bars}
+  </svg></div>`;
+}
+
+/* ---- Injury form ---- */
+let editingInjuryId=null;
+function openInjForm(id){
+  editingInjuryId=id||null;
+  const inj = id? DB.injuries[id] : {};
+  $("#injFormTitle").textContent = id? "Editar lesión":"Nueva lesión";
+  $("#if_dx").value=inj.diagnostico||"";
+  $("#if_estructura").value=inj.estructura||"";
+  $("#if_mecanismo").value=inj.mecanismo||"";
+  $("#if_flesion").value=inj.fechaLesion||todayISO();
+  $("#if_falta").value=inj.fechaAlta||"";
+  $("#if_antecedente").value=inj.antecedente||"";
+  $("#if_fcirugia").value=inj.fechaCirugia||"";
+  $("#if_tecnica").value=inj.tecnica||"";
+  $("#if_kine").value=inj.kine||"";
+  $("#if_notas").value=inj.notas||"";
+  $("#injFormOverlay").classList.add("open");
+}
+function closeInjForm(){ $("#injFormOverlay").classList.remove("open"); }
+function saveInjury(){
+  const dx=$("#if_dx").value.trim(), fl=$("#if_flesion").value;
+  if(!dx||!fl){ toast("Falta diagnóstico o fecha de lesión"); return; }
+  const id=editingInjuryId||uid();
+  DB.injuries[id]={
+    playerId: detailId,
+    diagnostico:dx, estructura:$("#if_estructura").value, mecanismo:$("#if_mecanismo").value,
+    fechaLesion:fl, fechaAlta:$("#if_falta").value||"",
+    antecedente:$("#if_antecedente").value, fechaCirugia:$("#if_fcirugia").value, tecnica:$("#if_tecnica").value,
+    kine:$("#if_kine").value, notas:$("#if_notas").value
+  };
+  save(); closeInjForm(); detTab='lesiones'; renderDetail(); renderPlantel();
+  toast("Lesión guardada");
+}
+
+/* ---- Session form ---- */
+function openSessForm(){
+  sessTipo='entrenamiento'; exRows=[];
+  setSessTipo('entrenamiento');
+  $("#sf_fecha").value=todayISO();
+  $("#sf_duracion").value=""; $("#sf_rpe").value=""; $("#sf_lsi").value=""; $("#sf_eva").value=""; $("#sf_notas").value="";
+  const openInj = openInjuriesOf(detailId);
+  $("#sf_injury").innerHTML = `<option value="">— General —</option>` + openInj.map(i=>`<option value="${i.id}">${esc(i.diagnostico)}</option>`).join("");
+  addExRow();
+  $("#sessFormOverlay").classList.add("open");
+}
+function closeSessForm(){ $("#sessFormOverlay").classList.remove("open"); }
+function setSessTipo(t){
+  sessTipo=t;
+  $("#stTipoEntreno").classList.toggle("active", t==='entrenamiento');
+  $("#stTipoEval").classList.toggle("active", t==='evaluacion');
+  $("#sf_entreno_block").classList.toggle("hidden", t!=='entrenamiento');
+  $("#sf_eval_block").classList.toggle("hidden", t!=='evaluacion');
+}
+function addExRow(){
+  const id=uid();
+  exRows.push({id, esCarrera:false});
+  renderExList();
+}
+function removeExRow(id){ exRows=exRows.filter(r=>r.id!==id); renderExList(); }
+function toggleExCarrera(id){
+  const r=exRows.find(x=>x.id===id); if(!r) return;
+  r.esCarrera=!r.esCarrera;
+  renderExList();
+}
+function renderExList(){
+  $("#exList").innerHTML = exRows.map(r=>`
+    <div class="exrow" data-id="${r.id}">
+      <div class="extop">
+        <input type="text" placeholder="Nombre del ejercicio" id="exn_${r.id}" value="${esc(r.nombre||'')}">
+        <button class="toggle-run ${r.esCarrera?'on':''}" onclick="toggleExCarrera('${r.id}')" title="Carrera">🏃</button>
+        <button class="rm" onclick="removeExRow('${r.id}')">✕</button>
+      </div>
+      ${r.esCarrera? `
+        <div class="exgrid">
+          <div><input type="number" placeholder="0" id="exp_${r.id}" value="${r.pasadas||''}"><div class="exlbl">Pasadas</div></div>
+          <div><input type="number" placeholder="0" id="exd_${r.id}" value="${r.distancia||''}"><div class="exlbl">Distancia m</div></div>
+          <div><input type="number" placeholder="0" id="ext_${r.id}" value="${r.durex||''}"><div class="exlbl">Duración s</div></div>
+          <div><input type="number" placeholder="0" id="exr_${r.id}" value="${r.rpeex||''}"><div class="exlbl">RPE</div></div>
+        </div>
+      ` : `
+        <div class="exgrid">
+          <div><input type="number" placeholder="0" id="exs_${r.id}" value="${r.series||''}"><div class="exlbl">Series</div></div>
+          <div><input type="number" placeholder="0" id="exrep_${r.id}" value="${r.reps||''}"><div class="exlbl">Reps</div></div>
+          <div><input type="number" placeholder="0" id="exkg_${r.id}" value="${r.kg||''}"><div class="exlbl">Kg</div></div>
+          <div><input type="number" placeholder="0" id="exrir_${r.id}" value="${r.rir||''}"><div class="exlbl">RIR</div></div>
+        </div>
+      `}
+    </div>
+  `).join("");
+}
+function collectExRows(){
+  return exRows.map(r=>{
+    const esCarrera = $(`#exList [data-id="${r.id}"] .toggle-run`).classList.contains('on');
+    const nombre = $(`#exn_${r.id}`).value;
+    if(esCarrera){
+      return {nombre, esCarrera:true,
+        pasadas:num($(`#exp_${r.id}`).value), distancia:num($(`#exd_${r.id}`).value),
+        durex:num($(`#ext_${r.id}`).value), rpeex:num($(`#exr_${r.id}`).value)};
+    }
+    return {nombre, esCarrera:false,
+      series:num($(`#exs_${r.id}`).value), reps:num($(`#exrep_${r.id}`).value),
+      kg:num($(`#exkg_${r.id}`).value), rir:num($(`#exrir_${r.id}`).value)};
+  }).filter(e=>e.nombre);
+}
+function saveSession(){
+  const fecha=$("#sf_fecha").value;
+  if(!fecha){ toast("Falta la fecha"); return; }
+  const id=uid();
+  const base={ playerId:detailId, tipoRegistro:sessTipo, fecha, injuryId:$("#sf_injury").value||null, notas:$("#sf_notas").value };
+  if(sessTipo==='evaluacion'){
+    DB.sessions[id]={...base, lsi:num($("#sf_lsi").value), eva:num($("#sf_eva").value)};
+  } else {
+    DB.sessions[id]={...base, duracion:num($("#sf_duracion").value), rpe:num($("#sf_rpe").value), ejercicios:collectExRows()};
+  }
+  save(); closeSessForm(); detTab='sesiones'; renderDetail();
+  toast("Registro guardado");
+}
+
+/* ================= Estadísticas globales ================= */
+function renderStats(){
+  const players=Object.entries(DB.players).map(([id,p])=>({id,...p}));
+  const injuries=Object.entries(DB.injuries).map(([id,i])=>({id,...i}));
+  const openInj = injuries.filter(i=>!i.fechaAlta);
+  const closedInj = injuries.filter(i=>i.fechaAlta);
+  const withInjury = new Set(injuries.map(i=>i.playerId));
+
+  const diasArr = closedInj.map(i=>daysBetween(i.fechaLesion,i.fechaAlta)).filter(d=>d!=null);
+  const avgDias = diasArr.length? (diasArr.reduce((a,b)=>a+b,0)/diasArr.length).toFixed(1) : "—";
+
+  // Lesiones por mes (últimos 12 meses con datos)
+  const byMonth={};
+  injuries.forEach(i=>{ if(!i.fechaLesion) return; const m=i.fechaLesion.slice(0,7); byMonth[m]=(byMonth[m]||0)+1; });
+  const months = Object.keys(byMonth).sort().slice(-12);
+  const monthItems = months.map(m=>({label:m.slice(2).replace('-','/'), value:byMonth[m]}));
+
+  // Diagnóstico más frecuente
+  const byDx={};
+  injuries.forEach(i=>{ const k=(i.diagnostico||'—').trim(); byDx[k]=(byDx[k]||0)+1; });
+  const rankDx = Object.entries(byDx).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxDx = rankDx.length? rankDx[0][1] : 1;
+
+  // Recurrencia por jugador
+  const byPlayer={};
+  injuries.forEach(i=>{ byPlayer[i.playerId]=(byPlayer[i.playerId]||0)+1; });
+  const rankPlayer = Object.entries(byPlayer).sort((a,b)=>b[1]-a[1]).slice(0,8)
+    .map(([pid,count])=>({name:(DB.players[pid]&&DB.players[pid].nombre)||'—', count}));
+  const maxPlayerCount = rankPlayer.length? rankPlayer[0].count : 1;
+
+  // Tabla resumen días de baja por jugador
+  const tableRows = players.map(p=>{
+    const inj = injuries.filter(i=>i.playerId===p.id);
+    const dias = inj.reduce((a,i)=>a+(daysBetween(i.fechaLesion,i.fechaAlta)||0),0);
+    return {nombre:p.nombre, veces:inj.length, dias};
+  }).filter(r=>r.veces>0).sort((a,b)=>b.dias-a.dias);
+
+  let html = `
+    <div class="kpis">
+      <div class="kpi warn"><div class="n">${openInj.length}</div><div class="l">Lesionados hoy</div></div>
+      <div class="kpi"><div class="n">${injuries.length}</div><div class="l">Episodios históricos</div></div>
+      <div class="kpi"><div class="n">${withInjury.size}</div><div class="l">Jugadores afectados</div></div>
+      <div class="kpi"><div class="n">${avgDias}</div><div class="l">Días prom. recuperación</div></div>
+    </div>
+
+    <div class="section">
+      <h3>Lesiones por mes</h3>
+      ${barChartSVG(monthItems, '#0f5c2e')}
+    </div>
+
+    <div class="section">
+      <h3>Diagnóstico más frecuente</h3>
+      <div class="rank">
+        ${rankDx.length? rankDx.map(([name,count])=>`
+          <div class="ritem">
+            <div class="rname">${esc(name)}</div>
+            <div class="rbarwrap"><div class="rbar" style="width:${(count/maxDx*100).toFixed(0)}%"></div></div>
+            <div class="rval">${count}</div>
+          </div>`).join("") : `<p class="muted small">Sin datos aún.</p>`}
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Recurrencia por jugador</h3>
+      <div class="rank">
+        ${rankPlayer.length? rankPlayer.map((r,i)=>`
+          <div class="ritem">
+            <div class="rn">${i+1}</div>
+            <div class="rname">${esc(r.name)}</div>
+            <div class="rbarwrap"><div class="rbar" style="width:${(r.count/maxPlayerCount*100).toFixed(0)}%"></div></div>
+            <div class="rval">${r.count}</div>
+          </div>`).join("") : `<p class="muted small">Sin datos aún.</p>`}
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Días de baja por jugador</h3>
+      ${tableRows.length? `
+        <table style="width:100%;border-collapse:collapse;font-size:12.5px">
+          <tr style="text-align:left;color:#6b7570;font-size:11px;text-transform:uppercase">
+            <th style="padding:4px 2px">Jugador</th><th style="padding:4px 2px">Veces</th><th style="padding:4px 2px">Días</th><th style="padding:4px 2px">Semanas</th>
+          </tr>
+          ${tableRows.map(r=>`
+            <tr style="border-top:1px solid #e2e8e3">
+              <td style="padding:6px 2px;font-weight:600">${esc(r.nombre)}</td>
+              <td style="padding:6px 2px">${r.veces}</td>
+              <td style="padding:6px 2px">${r.dias}</td>
+              <td style="padding:6px 2px">${(r.dias/7).toFixed(1)}</td>
+            </tr>`).join("")}
+        </table>
+      ` : `<p class="muted small">Sin datos aún.</p>`}
+    </div>
+  `;
+  $("#viewStats").innerHTML=html;
+}
+
+/* ================= Boot ================= */
+function showLogin(){ $("#loginView").classList.remove("hidden"); $("#appView").classList.add("hidden"); }
+function showApp(){ $("#loginView").classList.add("hidden"); $("#appView").classList.remove("hidden"); render(); }
+
+(function boot(){
+  if(!initFirebase()){ document.body.innerHTML="<p style='padding:20px;font-family:sans-serif'>Error cargando Firebase.</p>"; return; }
+  auth.onAuthStateChanged(user=>{
+    currentUser=user;
+    if(user){ bindData(); showApp(); } else { showLogin(); }
+  });
+})();
+</script>
+</body>
+</html>
