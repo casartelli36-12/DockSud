@@ -190,6 +190,7 @@ window.__FB_CONFIG = {
     </svg>
     <h1>Dock Sud · Kinesiología</h1>
     <p>Ingresá con tu cuenta del departamento</p>
+    <p class="small muted" style="text-align:center;margin:-12px 0 14px" id="loginBuild"></p>
     <div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username"></div>
     <div class="field"><label>Contraseña</label><input id="loginPass" type="password" autocomplete="current-password"></div>
     <button class="btn block" onclick="doLogin()">Ingresar</button>
@@ -329,7 +330,7 @@ window.__FB_CONFIG = {
 <div class="overlay" id="sessFormOverlay">
   <div class="modal">
     <div class="modal-head">
-      <h2>Nuevo registro</h2>
+      <h2 id="sessFormTitle">Nuevo registro</h2>
       <button class="modal-x" onclick="closeSessForm()">✕</button>
     </div>
     <div class="modal-body">
@@ -546,12 +547,28 @@ function setView(v){
   render();
 }
 
-function render(){
+/* ---- Wrappers con manejo de errores: si algo rompe, se ve un aviso claro en vez de pantalla congelada ---- */
+function showRenderError(containerId, err){
+  console.error('Error de render en', containerId, err);
+  const el = $("#"+containerId);
+  if(el) el.innerHTML = `<div class="section" style="border-left:4px solid var(--red)">
+    <h3>⚠️ Ocurrió un error al mostrar esta pantalla</h3>
+    <p class="small muted">Probá cerrar y volver a abrir esta ficha. Si se repite, cerrá completamente la app/pestaña del navegador y volvé a entrar (a veces queda una versión vieja guardada en caché).</p>
+    <p class="small muted" style="margin-top:6px">Detalle técnico: ${esc(err && err.message || String(err))}</p>
+  </div>`;
+  toast("Hubo un error. Mirá el mensaje en pantalla.");
+}
+function render(){ try{ _render(); }catch(e){ showRenderError(currentView==='plantel'?'viewPlantel':'viewStats', e); } }
+function renderPlantel(){ try{ _renderPlantel(); }catch(e){ showRenderError('viewPlantel', e); } }
+function renderStats(){ try{ _renderStats(); }catch(e){ showRenderError('viewStats', e); } }
+function renderDetail(){ try{ _renderDetail(); }catch(e){ showRenderError('detBody', e); } }
+
+function _render(){
   if(currentView==="plantel") renderPlantel(); else renderStats();
 }
 
 /* ================= Plantel ================= */
-function renderPlantel(){
+function _renderPlantel(){
   const players=Object.entries(DB.players).map(([id,p])=>({id,...p}));
   players.forEach(p=>p._estado=computeEstado(p.id));
   const filterEstado=($("#filtroEstado")&&$("#filtroEstado").value)||"";
@@ -669,7 +686,7 @@ function openDetail(id){
 }
 function closeDetail(){ $("#detOverlay").classList.remove("open"); detailId=null; }
 
-function renderDetail(){
+function _renderDetail(){
   const p=DB.players[detailId]; if(!p) return closeDetail();
   $("#detName").textContent=p.nombre;
   const injuries=playerInjuries(detailId).sort((a,b)=>(b.fechaLesion||"").localeCompare(a.fechaLesion||""));
@@ -771,7 +788,10 @@ function sessHTML(s){
     <div class="sess">
       <div class="stop">
         <span class="stype">${isEval?'📋 Evaluación':'🩹 Sesión'} · ${fmt(s.fecha)}</span>
-        <button class="btn sm danger" onclick="deleteSession('${s.id}')">✕</button>
+        <div style="display:flex;gap:6px">
+          <button class="btn sm line" onclick="openSessForm('${s.id}')">Editar</button>
+          <button class="btn sm danger" onclick="deleteSession('${s.id}')">✕</button>
+        </div>
       </div>
       <div class="srow">
         ${s.etapa? `<span class="chip etapa">${esc(s.etapa)}</span>`:""}
@@ -1004,15 +1024,36 @@ function saveInjury(){
 }
 
 /* ---- Session form ---- */
-function openSessForm(){
-  sessTipo='entrenamiento';
-  setSessTipo('entrenamiento');
-  $("#sf_fecha").value=todayISO();
-  $("#sf_duracion").value=""; $("#sf_rpe").value=""; $("#sf_lsi").value=""; $("#sf_eva").value="";
-  $("#sf_notas").value=""; $("#sf_desc").value=""; $("#sf_etapa").value=""; $("#sf_inicio_carrera").checked=false;
+let editingSessionId=null;
+function openSessForm(id){
+  editingSessionId=id||null;
+  const s = id? DB.sessions[id] : null;
+  $("#sessFormTitle").textContent = id? "Editar registro":"Nuevo registro";
+
+  const tipo = s? s.tipoRegistro : 'entrenamiento';
+  sessTipo=tipo;
+  setSessTipo(tipo);
+
+  $("#sf_fecha").value = s? s.fecha : todayISO();
   const openInj = openInjuriesOf(detailId);
-  $("#sf_injury").innerHTML = `<option value="">— General —</option>` + openInj.map(i=>`<option value="${i.id}">${esc(i.diagnostico)}</option>`).join("");
+  const injOptions = openInj.map(i=>({id:i.id, diagnostico:i.diagnostico}));
+  // si estamos editando y la lesión vinculada ya no está abierta, la agregamos igual para no perder el vínculo
+  if(s && s.injuryId && !injOptions.find(o=>o.id===s.injuryId) && DB.injuries[s.injuryId]){
+    injOptions.unshift({id:s.injuryId, diagnostico:DB.injuries[s.injuryId].diagnostico+' (cerrada)'});
+  }
+  $("#sf_injury").innerHTML = `<option value="">— General —</option>` + injOptions.map(i=>`<option value="${i.id}">${esc(i.diagnostico)}</option>`).join("");
+  $("#sf_injury").value = s? (s.injuryId||"") : "";
   onSessInjuryChange();
+
+  $("#sf_etapa").value = s? (s.etapa||"") : "";
+  $("#sf_inicio_carrera").checked = s? !!s.inicioCarrera : false;
+  $("#sf_desc").value = s? (s.descripcion||"") : "";
+  $("#sf_duracion").value = s && s.duracion!=null? s.duracion : "";
+  $("#sf_rpe").value = s && s.rpe!=null? s.rpe : "";
+  $("#sf_lsi").value = s && s.lsi!=null? s.lsi : "";
+  $("#sf_eva").value = s && s.eva!=null? s.eva : "";
+  $("#sf_notas").value = s? (s.notas||"") : "";
+
   $("#sessFormOverlay").classList.add("open");
 }
 function closeSessForm(){ $("#sessFormOverlay").classList.remove("open"); }
@@ -1034,7 +1075,7 @@ function saveSession(){
   const desc=$("#sf_desc").value.trim();
   if(!fecha){ toast("Falta la fecha"); return; }
   if(sessTipo==='entrenamiento' && !desc){ toast("Contá qué se hizo en la sesión"); return; }
-  const id=uid();
+  const id=editingSessionId||uid();
   const base={ playerId:detailId, tipoRegistro:sessTipo, fecha, injuryId:$("#sf_injury").value||null,
     notas:$("#sf_notas").value, eva:num($("#sf_eva").value) };
   if(sessTipo==='evaluacion'){
@@ -1044,11 +1085,12 @@ function saveSession(){
       duracion:num($("#sf_duracion").value), rpe:num($("#sf_rpe").value)};
   }
   save(); closeSessForm(); detTab='sesiones'; renderDetail(); renderPlantel();
-  toast("Registro guardado");
+  toast(editingSessionId? "Registro actualizado" : "Registro guardado");
+  editingSessionId=null;
 }
 
 /* ================= Estadísticas globales ================= */
-function renderStats(){
+function _renderStats(){
   const players=Object.entries(DB.players).map(([id,p])=>({id,...p}));
   const injuries=Object.entries(DB.injuries).map(([id,i])=>({id,...i}));
   const openInj = injuries.filter(i=>!i.fechaAlta);
@@ -1171,8 +1213,18 @@ function renderStats(){
 }
 
 /* ================= Boot ================= */
-function showLogin(){ $("#loginView").classList.remove("hidden"); $("#appView").classList.add("hidden"); }
+const APP_BUILD = "2026-08-25-3";
+function showLogin(){ $("#loginView").classList.remove("hidden"); $("#appView").classList.add("hidden"); const b=$("#loginBuild"); if(b) b.textContent="v"+APP_BUILD; }
 function showApp(){ $("#loginView").classList.add("hidden"); $("#appView").classList.remove("hidden"); render(); }
+
+window.addEventListener('error', function(e){
+  console.error('Error global:', e.error||e.message);
+  toast("⚠️ Error inesperado — si la pantalla se ve rara, cerrá y volvé a abrir la app");
+});
+window.addEventListener('unhandledrejection', function(e){
+  console.error('Promesa rechazada:', e.reason);
+  toast("⚠️ Error de conexión — revisá tu internet");
+});
 
 (function boot(){
   if(!initFirebase()){ document.body.innerHTML="<p style='padding:20px;font-family:sans-serif'>Error cargando Firebase.</p>"; return; }
