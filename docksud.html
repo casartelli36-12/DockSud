@@ -146,17 +146,9 @@ window.__FB_CONFIG = {
   .sess .stype{font-weight:700;color:var(--verde-2)}
   .sess .srow{display:flex;flex-wrap:wrap;gap:6px;font-size:11.5px}
   .chip{background:#fff;border:1px solid var(--line);border-radius:20px;padding:3px 9px;color:var(--ink)}
-
-  .exrow{border:1px solid var(--line);border-radius:9px;padding:8px;margin-bottom:7px;background:#fff}
-  .exrow .extop{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:6px}
-  .exrow .extop input[type=text]{flex:1;border:none;border-bottom:1px solid var(--line);padding:4px 2px;font-weight:700;font-size:13px}
-  .exrow .toggle-run{background:var(--verde-soft);border:1px solid var(--verde-claro);border-radius:7px;
-    padding:4px 7px;font-size:14px}
-  .exrow .toggle-run.on{background:var(--verde);color:#fff}
-  .exrow .exgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
-  .exrow .exgrid input{padding:6px;font-size:12.5px;border:1px solid var(--line);border-radius:6px;text-align:center}
-  .exrow .exlbl{font-size:9px;color:var(--muted);text-align:center;text-transform:uppercase}
-  .exrow .rm{background:none;border:none;color:var(--red);font-size:16px;padding:2px 6px}
+  .chip.etapa{background:var(--verde-soft);color:var(--verde-2);font-weight:700}
+  .chip.hito{background:#fff3cf;color:#8a6300;font-weight:700}
+  .sess .sdesc{font-size:12.5px;margin-top:6px;white-space:pre-wrap}
 
   .rank{display:flex;flex-direction:column;gap:7px}
   .rank .ritem{display:flex;align-items:center;gap:9px}
@@ -337,21 +329,33 @@ window.__FB_CONFIG = {
     </div>
     <div class="modal-body">
       <div class="subtabs">
-        <button id="stTipoEntreno" class="active" onclick="setSessTipo('entrenamiento')">Entrenamiento</button>
+        <button id="stTipoEntreno" class="active" onclick="setSessTipo('entrenamiento')">Sesión / Rehab</button>
         <button id="stTipoEval" onclick="setSessTipo('evaluacion')">Evaluación</button>
       </div>
       <div class="grid2">
         <div class="field"><label>Fecha *</label><input id="sf_fecha" type="date"></div>
-        <div class="field"><label>Vincular a lesión</label><select id="sf_injury"><option value="">— General —</option></select></div>
+        <div class="field"><label>Vincular a lesión</label><select id="sf_injury" onchange="onSessInjuryChange()"><option value="">— General —</option></select></div>
       </div>
       <div id="sf_entreno_block">
+        <div id="sf_etapa_wrap" class="field hidden">
+          <label>Etapa de rehab</label>
+          <select id="sf_etapa">
+            <option value="">—</option>
+            <option>Fase aguda / protección</option>
+            <option>Fortalecimiento</option>
+            <option>Readaptación al esfuerzo (campo)</option>
+            <option>Reintegro al equipo</option>
+            <option>Alta deportiva</option>
+          </select>
+        </div>
+        <label id="sf_carrera_wrap" style="display:none;align-items:center;gap:8px;font-size:13px;font-weight:600;margin:2px 0 12px;cursor:pointer">
+          <input type="checkbox" id="sf_inicio_carrera" style="width:16px;height:16px">
+          🏃 Hoy volvió a correr por primera vez
+        </label>
+        <div class="field"><label>¿Qué se hizo hoy? *</label><textarea id="sf_desc" placeholder="Ej: Fortalecimiento isquiotibiales, bicicleta 20', movilidad de cadera…"></textarea></div>
         <div class="grid2">
           <div class="field"><label>Duración (min)</label><input id="sf_duracion" type="number" min="0"></div>
           <div class="field"><label>RPE sesión (0-10)</label><input id="sf_rpe" type="number" min="0" max="10"></div>
-        </div>
-        <div class="section" style="padding:10px;margin-bottom:10px">
-          <h3>Ejercicios <button class="btn sm" onclick="addExRow()">+ agregar</button></h3>
-          <div id="exList"></div>
         </div>
       </div>
       <div id="sf_eval_block" class="hidden">
@@ -462,7 +466,7 @@ function computeEstado(pid){
 }
 
 /* ================= View state ================= */
-let currentView="plantel", detailId=null, sessTipo="entrenamiento", exRows=[];
+let currentView="plantel", detailId=null, sessTipo="entrenamiento";
 
 function setView(v){
   currentView=v;
@@ -667,19 +671,22 @@ function sessHTML(s){
   } else {
     if(s.duracion) chips.push(`${s.duracion} min`);
     if(s.rpe!=null) chips.push(`RPE ${s.rpe}`);
-    const totalM = (s.ejercicios||[]).filter(e=>e.esCarrera).reduce((a,e)=>a+(num(e.distancia)||0)*(num(e.pasadas)||1),0);
-    if(totalM) chips.push(`${Math.round(totalM)} m`);
   }
   const inj = s.injuryId? DB.injuries[s.injuryId] : null;
   return `
     <div class="sess">
       <div class="stop">
-        <span class="stype">${isEval?'📋 Evaluación':'🏋️ Entrenamiento'} · ${fmt(s.fecha)}</span>
+        <span class="stype">${isEval?'📋 Evaluación':'🩹 Sesión'} · ${fmt(s.fecha)}</span>
         <button class="btn sm danger" onclick="deleteSession('${s.id}')">✕</button>
       </div>
-      <div class="srow">${chips.map(c=>`<span class="chip">${esc(c)}</span>`).join("")}</div>
+      <div class="srow">
+        ${s.etapa? `<span class="chip etapa">${esc(s.etapa)}</span>`:""}
+        ${s.inicioCarrera? `<span class="chip hito">🏃 Inicio de carrera</span>`:""}
+        ${chips.map(c=>`<span class="chip">${esc(c)}</span>`).join("")}
+      </div>
       ${inj? `<div class="small muted" style="margin-top:5px">Vinculado a: ${esc(inj.diagnostico)}</div>`:""}
-      ${s.notas? `<div class="small" style="margin-top:5px">${esc(s.notas)}</div>`:""}
+      ${s.descripcion? `<div class="sdesc">${esc(s.descripcion)}</div>`:""}
+      ${s.notas? `<div class="small muted" style="margin-top:4px">${esc(s.notas)}</div>`:""}
     </div>
   `;
 }
@@ -689,21 +696,42 @@ function deleteSession(id){
   save(); renderDetail();
 }
 
-/* ---- Evolución (carga interna / externa) ---- */
+/* ---- Evolución (rehab / carga interna) ---- */
 function renderEvolucion(pid, sessions, injuries){
   const trainings = sessions.filter(s=>s.tipoRegistro!=="evaluacion").slice().reverse();
   const evals = sessions.filter(s=>s.tipoRegistro==="evaluacion").slice().reverse();
 
   const cargaInterna = trainings.map(s=>({x:s.fecha, y:(num(s.duracion)||0)*(num(s.rpe)||0)})); // sRPE
-  const cargaExterna = trainings.map(s=>({x:s.fecha, y:(s.ejercicios||[]).filter(e=>e.esCarrera).reduce((a,e)=>a+(num(e.distancia)||0)*(num(e.pasadas)||1),0)}));
   const lsi = evals.filter(e=>e.lsi!=null).map(e=>({x:e.fecha, y:num(e.lsi)}));
 
-  let html=`<div class="section"><h3>Carga interna (sRPE = duración × RPE)</h3>${lineChartSVG(cargaInterna,'#0f5c2e')}</div>`;
-  html+=`<div class="section"><h3>Carga externa (metros recorridos)</h3>${lineChartSVG(cargaExterna,'#378add')}</div>`;
+  let html="";
+
+  // Lesión abierta: etapa actual, días lesionado, días hasta inicio de carrera
+  const open = injuries.find(i=>!i.fechaAlta);
+  if(open){
+    const sesOfInj = sessions.filter(s=>s.injuryId===open.id).slice().sort((a,b)=>(a.fecha||"").localeCompare(b.fecha||""));
+    const conEtapa = sesOfInj.filter(s=>s.etapa).slice().reverse();
+    const etapaActual = conEtapa.length? conEtapa[0].etapa : null;
+    const diasLesionado = daysBetween(open.fechaLesion);
+    const primerCarrera = sesOfInj.find(s=>s.inicioCarrera);
+    const diasHastaCarrera = primerCarrera? daysBetween(open.fechaLesion, primerCarrera.fecha) : null;
+
+    html += `<div class="section">
+      <h3>Lesión en curso</h3>
+      <div class="edx" style="margin-bottom:8px">${esc(open.diagnostico)}</div>
+      <div class="kpis" style="margin-bottom:0">
+        <div class="kpi warn"><div class="n">${diasLesionado}</div><div class="l">Días lesionado</div></div>
+        <div class="kpi"><div class="n">${etapaActual? '' : '—'}</div><div class="l" style="font-size:11px;text-transform:none;font-weight:700;color:var(--verde)">${etapaActual||'Sin etapa registrada'}</div></div>
+        <div class="kpi"><div class="n">${diasHastaCarrera!=null? diasHastaCarrera : '—'}</div><div class="l">Días hasta correr</div></div>
+      </div>
+    </div>`;
+  }
+
+  html+=`<div class="section"><h3>Carga interna (sRPE = duración × RPE)</h3>${lineChartSVG(cargaInterna,'#123b7a')}</div>`;
   if(lsi.length) html+=`<div class="section"><h3>LSI (%)</h3>${lineChartSVG(lsi,'#ef9f27',100)}</div>`;
 
   const totalDiasBaja = injuries.reduce((a,i)=> a + (daysBetween(i.fechaLesion,i.fechaAlta)||0), 0);
-  html += `<div class="section"><h3>Resumen</h3>
+  html += `<div class="section"><h3>Resumen histórico</h3>
     <div class="grid2 small">
       <div>Lesiones históricas: <b>${injuries.length}</b></div>
       <div>Días totales de baja: <b>${totalDiasBaja}</b></div>
@@ -869,13 +897,14 @@ function saveInjury(){
 
 /* ---- Session form ---- */
 function openSessForm(){
-  sessTipo='entrenamiento'; exRows=[];
+  sessTipo='entrenamiento';
   setSessTipo('entrenamiento');
   $("#sf_fecha").value=todayISO();
-  $("#sf_duracion").value=""; $("#sf_rpe").value=""; $("#sf_lsi").value=""; $("#sf_eva").value=""; $("#sf_notas").value="";
+  $("#sf_duracion").value=""; $("#sf_rpe").value=""; $("#sf_lsi").value=""; $("#sf_eva").value="";
+  $("#sf_notas").value=""; $("#sf_desc").value=""; $("#sf_etapa").value=""; $("#sf_inicio_carrera").checked=false;
   const openInj = openInjuriesOf(detailId);
   $("#sf_injury").innerHTML = `<option value="">— General —</option>` + openInj.map(i=>`<option value="${i.id}">${esc(i.diagnostico)}</option>`).join("");
-  addExRow();
+  onSessInjuryChange();
   $("#sessFormOverlay").classList.add("open");
 }
 function closeSessForm(){ $("#sessFormOverlay").classList.remove("open"); }
@@ -886,66 +915,24 @@ function setSessTipo(t){
   $("#sf_entreno_block").classList.toggle("hidden", t!=='entrenamiento');
   $("#sf_eval_block").classList.toggle("hidden", t!=='evaluacion');
 }
-function addExRow(){
-  const id=uid();
-  exRows.push({id, esCarrera:false});
-  renderExList();
-}
-function removeExRow(id){ exRows=exRows.filter(r=>r.id!==id); renderExList(); }
-function toggleExCarrera(id){
-  const r=exRows.find(x=>x.id===id); if(!r) return;
-  r.esCarrera=!r.esCarrera;
-  renderExList();
-}
-function renderExList(){
-  $("#exList").innerHTML = exRows.map(r=>`
-    <div class="exrow" data-id="${r.id}">
-      <div class="extop">
-        <input type="text" placeholder="Nombre del ejercicio" id="exn_${r.id}" value="${esc(r.nombre||'')}">
-        <button class="toggle-run ${r.esCarrera?'on':''}" onclick="toggleExCarrera('${r.id}')" title="Carrera">🏃</button>
-        <button class="rm" onclick="removeExRow('${r.id}')">✕</button>
-      </div>
-      ${r.esCarrera? `
-        <div class="exgrid">
-          <div><input type="number" placeholder="0" id="exp_${r.id}" value="${r.pasadas||''}"><div class="exlbl">Pasadas</div></div>
-          <div><input type="number" placeholder="0" id="exd_${r.id}" value="${r.distancia||''}"><div class="exlbl">Distancia m</div></div>
-          <div><input type="number" placeholder="0" id="ext_${r.id}" value="${r.durex||''}"><div class="exlbl">Duración s</div></div>
-          <div><input type="number" placeholder="0" id="exr_${r.id}" value="${r.rpeex||''}"><div class="exlbl">RPE</div></div>
-        </div>
-      ` : `
-        <div class="exgrid">
-          <div><input type="number" placeholder="0" id="exs_${r.id}" value="${r.series||''}"><div class="exlbl">Series</div></div>
-          <div><input type="number" placeholder="0" id="exrep_${r.id}" value="${r.reps||''}"><div class="exlbl">Reps</div></div>
-          <div><input type="number" placeholder="0" id="exkg_${r.id}" value="${r.kg||''}"><div class="exlbl">Kg</div></div>
-          <div><input type="number" placeholder="0" id="exrir_${r.id}" value="${r.rir||''}"><div class="exlbl">RIR</div></div>
-        </div>
-      `}
-    </div>
-  `).join("");
-}
-function collectExRows(){
-  return exRows.map(r=>{
-    const esCarrera = $(`#exList [data-id="${r.id}"] .toggle-run`).classList.contains('on');
-    const nombre = $(`#exn_${r.id}`).value;
-    if(esCarrera){
-      return {nombre, esCarrera:true,
-        pasadas:num($(`#exp_${r.id}`).value), distancia:num($(`#exd_${r.id}`).value),
-        durex:num($(`#ext_${r.id}`).value), rpeex:num($(`#exr_${r.id}`).value)};
-    }
-    return {nombre, esCarrera:false,
-      series:num($(`#exs_${r.id}`).value), reps:num($(`#exrep_${r.id}`).value),
-      kg:num($(`#exkg_${r.id}`).value), rir:num($(`#exrir_${r.id}`).value)};
-  }).filter(e=>e.nombre);
+function onSessInjuryChange(){
+  const hasInjury = !!$("#sf_injury").value;
+  $("#sf_etapa_wrap").classList.toggle("hidden", !hasInjury);
+  $("#sf_carrera_wrap").style.display = hasInjury? "flex":"none";
+  if(!hasInjury){ $("#sf_etapa").value=""; $("#sf_inicio_carrera").checked=false; }
 }
 function saveSession(){
   const fecha=$("#sf_fecha").value;
+  const desc=$("#sf_desc").value.trim();
   if(!fecha){ toast("Falta la fecha"); return; }
+  if(sessTipo==='entrenamiento' && !desc){ toast("Contá qué se hizo en la sesión"); return; }
   const id=uid();
   const base={ playerId:detailId, tipoRegistro:sessTipo, fecha, injuryId:$("#sf_injury").value||null, notas:$("#sf_notas").value };
   if(sessTipo==='evaluacion'){
     DB.sessions[id]={...base, lsi:num($("#sf_lsi").value), eva:num($("#sf_eva").value)};
   } else {
-    DB.sessions[id]={...base, duracion:num($("#sf_duracion").value), rpe:num($("#sf_rpe").value), ejercicios:collectExRows()};
+    DB.sessions[id]={...base, descripcion:desc, etapa:$("#sf_etapa").value, inicioCarrera:$("#sf_inicio_carrera").checked,
+      duracion:num($("#sf_duracion").value), rpe:num($("#sf_rpe").value)};
   }
   save(); closeSessForm(); detTab='sesiones'; renderDetail();
   toast("Registro guardado");
