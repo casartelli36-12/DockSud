@@ -297,7 +297,11 @@ window.__FB_CONFIG = {
           <select id="if_mecanismo"><option value="">—</option><option>Traumático</option><option>Sobreuso</option><option>Reagudización</option></select>
         </div>
       </div>
-      <div class="field"><label>Fecha de alta (dejar vacío si sigue en curso)</label><input id="if_falta" type="date"></div>
+      <div class="grid2">
+        <div class="field"><label>Fecha de alta médica (fin del tratamiento)</label><input id="if_falta" type="date"></div>
+        <div class="field"><label>Fecha de reintegro al plantel</label><input id="if_freintegro" type="date"></div>
+      </div>
+      <p class="small muted" style="margin-top:-6px">Dejalas vacías si sigue en curso. El reintegro es cuando vuelve a entrenar/estar disponible con el plantel — puede ser distinto a la fecha de alta médica.</p>
       <div class="field"><label>Antecedente</label><input id="if_antecedente"></div>
 
       <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin:12px 0;cursor:pointer">
@@ -453,6 +457,19 @@ function esc(s){ return (s==null?"":String(s)).replace(/[&<>"']/g,c=>({"&":"&amp
 function fmt(d){ if(!d) return "—"; const [y,m,dd]=d.split("-"); return `${dd}/${m}/${y.slice(2)}`; }
 function todayISO(){ return new Date().toISOString().slice(0,10); }
 function daysBetween(a,b){ if(!a) return null; const end=b?new Date(b):new Date(); return Math.round((end-new Date(a))/86400000); }
+function fmtDuracion(dias, corto){
+  if(dias==null) return "—";
+  const semanas=(dias/7).toFixed(1);
+  if(corto){
+    if(dias<21) return `${dias} d`;
+    if(dias<60) return `${semanas} sem`;
+    return `${(dias/30.44).toFixed(1)} m`;
+  }
+  const meses=(dias/30.44).toFixed(1);
+  if(dias<21) return `${dias} días`;
+  if(dias<60) return `${dias} días · ${semanas} semanas`;
+  return `${dias} días · ${semanas} semanas · ${meses} meses`;
+}
 function num(v){ return (v!==""&&v!=null&&!isNaN(v))? +v : null; }
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("show"),2200); }
 
@@ -700,15 +717,16 @@ function renderDetail(){
 
 function injEpisodeHTML(inj){
   const dias = daysBetween(inj.fechaLesion, inj.fechaAlta);
-  const semanas = dias!=null? (dias/7).toFixed(1) : null;
+  const diasReintegro = inj.fechaReintegro? daysBetween(inj.fechaLesion, inj.fechaReintegro) : null;
   const cls = inj.fechaAlta? "closed":"open";
   return `
     <div class="episode ${cls}">
       <div class="etop">
         <div class="edx">${esc(inj.diagnostico)}</div>
-        <div class="edays">${dias!=null? `${dias} d · ${semanas} sem` : "en curso"}</div>
+        <div class="edays">${dias!=null? fmtDuracion(dias) : "en curso"}</div>
       </div>
-      <div class="edates">Lesión: ${fmt(inj.fechaLesion)} ${inj.fechaAlta? " → Alta: "+fmt(inj.fechaAlta) : ""}</div>
+      <div class="edates">Lesión: ${fmt(inj.fechaLesion)} ${inj.fechaAlta? " → Alta médica: "+fmt(inj.fechaAlta) : ""}</div>
+      ${inj.fechaReintegro? `<div class="edates">Reintegro al plantel: ${fmt(inj.fechaReintegro)} (${diasReintegro} días desde la lesión)</div>`:""}
       ${inj.estructura? `<div class="small muted">Estructura: ${esc(inj.estructura)}${inj.lado? ' · '+esc(inj.lado):''}${inj.porcion? ' · '+esc(inj.porcion):''}</div>`:""}
       ${inj.mecanismo? `<div class="small muted">Mecanismo: ${esc(inj.mecanismo)}</div>`:""}
       ${inj.tecnica? `<div class="small muted">Cirugía: ${esc(inj.tecnica)} (${fmt(inj.fechaCirugia)})</div>`:""}
@@ -716,6 +734,7 @@ function injEpisodeHTML(inj){
       <div class="eactions">
         <button class="btn sm line" onclick="openInjForm('${inj.id}')">Editar</button>
         ${!inj.fechaAlta? `<button class="btn sm" onclick="darAlta('${inj.id}')">Dar de alta hoy</button>`:""}
+        ${inj.fechaAlta && !inj.fechaReintegro? `<button class="btn sm" onclick="marcarReintegro('${inj.id}')">Reintegro hoy</button>`:""}
         <button class="btn sm danger" onclick="deleteInjury('${inj.id}')">Eliminar</button>
       </div>
     </div>
@@ -725,6 +744,11 @@ function darAlta(injId){
   DB.injuries[injId].fechaAlta=todayISO();
   save(); renderDetail(); renderPlantel();
   toast("Alta registrada");
+}
+function marcarReintegro(injId){
+  DB.injuries[injId].fechaReintegro=todayISO();
+  save(); renderDetail(); renderPlantel();
+  toast("Reintegro registrado");
 }
 function deleteInjury(injId){
   if(!confirm("¿Eliminar esta lesión?")) return;
@@ -802,7 +826,7 @@ function renderEvolucion(pid, sessions, injuries){
       <h3>Lesión en curso</h3>
       <div class="edx" style="margin-bottom:8px">${esc(open.diagnostico)}</div>
       <div class="kpis" style="margin-bottom:0">
-        <div class="kpi warn"><div class="n">${diasLesionado}</div><div class="l">Días lesionado</div></div>
+        <div class="kpi warn"><div class="n">${diasLesionado}</div><div class="l">Días (${fmtDuracion(diasLesionado,true)})</div></div>
         <div class="kpi"><div class="n">${etapaActual? '' : '—'}</div><div class="l" style="font-size:11px;text-transform:none;font-weight:700;color:var(--verde)">${etapaActual||'Sin etapa registrada'}</div></div>
         <div class="kpi"><div class="n">${diasHastaCarrera!=null? diasHastaCarrera : '—'}</div><div class="l">Días hasta correr</div></div>
       </div>
@@ -817,7 +841,7 @@ function renderEvolucion(pid, sessions, injuries){
   html += `<div class="section"><h3>Resumen histórico</h3>
     <div class="grid2 small">
       <div>Lesiones históricas: <b>${injuries.length}</b></div>
-      <div>Días totales de baja: <b>${totalDiasBaja}</b></div>
+      <div>Días totales de baja: <b>${fmtDuracion(totalDiasBaja)}</b></div>
     </div>
   </div>`;
   return html;
@@ -947,6 +971,7 @@ function openInjForm(id){
   $("#if_mecanismo").value=inj.mecanismo||"";
   $("#if_flesion").value=inj.fechaLesion||todayISO();
   $("#if_falta").value=inj.fechaAlta||"";
+  $("#if_freintegro").value=inj.fechaReintegro||"";
   $("#if_antecedente").value=inj.antecedente||"";
   $("#if_fcirugia").value=inj.fechaCirugia||"";
   $("#if_tecnica").value=inj.tecnica||"";
@@ -968,7 +993,7 @@ function saveInjury(){
   DB.injuries[id]={
     playerId: detailId,
     tipo, estructura, porcion, lado, grado, diagnostico:dx, mecanismo:$("#if_mecanismo").value,
-    fechaLesion:fl, fechaAlta:$("#if_falta").value||"",
+    fechaLesion:fl, fechaAlta:$("#if_falta").value||"", fechaReintegro:$("#if_freintegro").value||"",
     antecedente:$("#if_antecedente").value,
     fechaCirugia: reqCirugia? $("#if_fcirugia").value : "",
     tecnica: reqCirugia? $("#if_tecnica").value : "",
@@ -1032,6 +1057,7 @@ function renderStats(){
 
   const diasArr = closedInj.map(i=>daysBetween(i.fechaLesion,i.fechaAlta)).filter(d=>d!=null);
   const avgDias = diasArr.length? (diasArr.reduce((a,b)=>a+b,0)/diasArr.length).toFixed(1) : "—";
+  const avgSemanas = diasArr.length? (diasArr.reduce((a,b)=>a+b,0)/diasArr.length/7).toFixed(1) : null;
 
   // Lesiones por mes (últimos 12 meses con datos)
   const byMonth={};
@@ -1089,7 +1115,7 @@ function renderStats(){
       <div class="kpi warn"><div class="n">${openInj.length}</div><div class="l">Lesionados hoy</div></div>
       <div class="kpi"><div class="n">${injuries.length}</div><div class="l">Episodios históricos</div></div>
       <div class="kpi"><div class="n">${withInjury.size}</div><div class="l">Jugadores afectados</div></div>
-      <div class="kpi"><div class="n">${avgDias}</div><div class="l">Días prom. recuperación</div></div>
+      <div class="kpi"><div class="n">${avgDias}</div><div class="l">Días prom. recup.${avgSemanas? ` (${avgSemanas} sem)`:''}</div></div>
     </div>
 
     <div class="section">
@@ -1127,7 +1153,7 @@ function renderStats(){
       ${tableRows.length? `
         <table style="width:100%;border-collapse:collapse;font-size:12.5px">
           <tr style="text-align:left;color:#6b7570;font-size:11px;text-transform:uppercase">
-            <th style="padding:4px 2px">Jugador</th><th style="padding:4px 2px">Veces</th><th style="padding:4px 2px">Días</th><th style="padding:4px 2px">Semanas</th>
+            <th style="padding:4px 2px">Jugador</th><th style="padding:4px 2px">Veces</th><th style="padding:4px 2px">Días</th><th style="padding:4px 2px">Semanas</th><th style="padding:4px 2px">Meses</th>
           </tr>
           ${tableRows.map(r=>`
             <tr style="border-top:1px solid #e2e8e3">
@@ -1135,6 +1161,7 @@ function renderStats(){
               <td style="padding:6px 2px">${r.veces}</td>
               <td style="padding:6px 2px">${r.dias}</td>
               <td style="padding:6px 2px">${(r.dias/7).toFixed(1)}</td>
+              <td style="padding:6px 2px">${(r.dias/30.44).toFixed(1)}</td>
             </tr>`).join("")}
         </table>
       ` : `<p class="muted small">Sin datos aún.</p>`}
