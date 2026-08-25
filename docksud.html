@@ -286,6 +286,14 @@ window.__FB_CONFIG = {
         </div>
       </div>
       <div class="field"><label>Estructura / localización *</label><select id="if_estructura" onchange="onEstructuraChange()"></select></div>
+      <div class="grid2">
+        <div id="if_porcion_wrap" class="field hidden"><label>Porción</label>
+          <select id="if_porcion" onchange="updateDxPreview()"><option value="">—</option></select>
+        </div>
+        <div class="field"><label>Lado *</label>
+          <select id="if_lado" onchange="updateDxPreview()"><option value="">—</option></select>
+        </div>
+      </div>
       <div class="field" style="background:var(--verde-soft);border-radius:8px;padding:8px 10px;margin-bottom:12px">
         <label style="margin-bottom:2px">Diagnóstico (se arma solo, podés ajustarlo)</label>
         <input id="if_dx" placeholder="Se completa automáticamente">
@@ -368,11 +376,20 @@ window.__FB_CONFIG = {
 let auth, db, DB = {players:{}, injuries:{}, sessions:{}, catalogos:{}}, currentUser=null;
 let saveTimer=null;
 
-const DEFAULT_TIPOS = ["Desgarro","Distensión","Contractura","Esguince","Ruptura ligamentaria",
+const DEFAULT_TIPOS = ["Desgarro","Distensión","Contractura","Esguince ligamentario","Ruptura ligamentaria",
   "Tendinopatía","Fascitis","Fractura","Luxación","Contusión","Sobrecarga / fatiga muscular","Pubalgia","Otra"];
-const DEFAULT_ESTRUCTURAS = ["Isquiotibiales","Cuádriceps","Aductores","Gemelo","Sóleo","Psoas","Ilíaco",
-  "Tríceps sural","Rodilla - LCA","Rodilla - LCP","Rodilla - LLI","Rodilla - LLE","Rodilla - Menisco",
-  "Tobillo - LPAA","Tobillo - Sindesmosis","Lumbar","Pubis","Cadera","Hombro","Muñeca","Otra"];
+const DEFAULT_ESTRUCTURAS = [
+  "Rodilla - LCA","Rodilla - LCP","Rodilla - LCM (colateral medial)","Rodilla - LCL (colateral lateral)",
+  "Rodilla - Menisco medial","Rodilla - Menisco lateral",
+  "Tobillo - LPAA","Tobillo - LPC","Tobillo - Deltoideo","Tobillo - Sindesmosis",
+  "Isquiotibiales - Bíceps femoral","Isquiotibiales - Semitendinoso","Isquiotibiales - Semimembranoso",
+  "Cuádriceps - Recto femoral","Cuádriceps - Vasto medial","Cuádriceps - Vasto lateral",
+  "Aductores - Aductor largo","Aductores - Aductor corto","Aductores - Grácil",
+  "Gemelo medial","Gemelo lateral","Sóleo","Psoas ilíaco",
+  "Pubis","Lumbar","Cadera","Hombro","Muñeca","Otra"];
+const PORCIONES = ["Proximal","Distal","Unión miotendinosa","Vientre muscular","Inserción"];
+const LADOS = ["Derecho","Izquierdo","Bilateral"];
+const TIPOS_CON_PORCION = ["Desgarro","Distensión","Contractura","Sobrecarga / fatiga muscular"];
 
 function initFirebase(){
   if(typeof firebase==="undefined") return false;
@@ -618,7 +635,7 @@ function injEpisodeHTML(inj){
         <div class="edays">${dias!=null? `${dias} d · ${semanas} sem` : "en curso"}</div>
       </div>
       <div class="edates">Lesión: ${fmt(inj.fechaLesion)} ${inj.fechaAlta? " → Alta: "+fmt(inj.fechaAlta) : ""}</div>
-      ${inj.estructura? `<div class="small muted">Estructura: ${esc(inj.estructura)}</div>`:""}
+      ${inj.estructura? `<div class="small muted">Estructura: ${esc(inj.estructura)}${inj.lado? ' · '+esc(inj.lado):''}${inj.porcion? ' · '+esc(inj.porcion):''}</div>`:""}
       ${inj.mecanismo? `<div class="small muted">Mecanismo: ${esc(inj.mecanismo)}</div>`:""}
       ${inj.tecnica? `<div class="small muted">Cirugía: ${esc(inj.tecnica)} (${fmt(inj.fechaCirugia)})</div>`:""}
       ${inj.notas? `<div class="small" style="margin-top:4px">${esc(inj.notas)}</div>`:""}
@@ -765,6 +782,9 @@ function onTipoChange(){
       fillCatalogSelect(sel, DB.catalogos.tipos, v);
     }
   }
+  const showPorcion = TIPOS_CON_PORCION.includes(sel.value);
+  $("#if_porcion_wrap").classList.toggle("hidden", !showPorcion);
+  if(!showPorcion) $("#if_porcion").value="";
   updateDxPreview();
 }
 function onEstructuraChange(){
@@ -783,13 +803,16 @@ function onEstructuraChange(){
 }
 function updateDxPreview(){
   const tipo=$("#if_tipo").value, grado=$("#if_grado").value, estructura=$("#if_estructura").value;
+  const porcion=$("#if_porcion").value, lado=$("#if_lado").value;
   if(tipo===ADD_NEW_VAL||estructura===ADD_NEW_VAL) return;
-  $("#if_dx").value = composeDx(tipo, estructura, grado);
+  $("#if_dx").value = composeDx(tipo, estructura, grado, porcion, lado);
 }
-function composeDx(tipo, estructura, grado){
+function composeDx(tipo, estructura, grado, porcion, lado){
   let s=tipo||"";
   if(grado) s += (s?" grado ":"Grado ")+grado;
   if(estructura) s += (s? " - ":"") + estructura;
+  if(porcion) s += " ("+porcion+")";
+  if(lado) s += " - "+lado;
   return s;
 }
 function onCirugiaToggle(){
@@ -804,6 +827,11 @@ function openInjForm(id){
   fillCatalogSelect($("#if_tipo"), DB.catalogos.tipos, inj.tipo||"");
   fillCatalogSelect($("#if_estructura"), DB.catalogos.estructuras, inj.estructura||"");
   $("#if_grado").value=inj.grado||"";
+  $("#if_porcion").innerHTML = `<option value="">—</option>` + PORCIONES.map(p=>`<option>${esc(p)}</option>`).join("");
+  $("#if_porcion").value=inj.porcion||"";
+  $("#if_lado").innerHTML = `<option value="">—</option>` + LADOS.map(l=>`<option>${esc(l)}</option>`).join("");
+  $("#if_lado").value=inj.lado||"";
+  $("#if_porcion_wrap").classList.toggle("hidden", !TIPOS_CON_PORCION.includes(inj.tipo||""));
   $("#if_dx").value=inj.diagnostico||"";
   $("#if_mecanismo").value=inj.mecanismo||"";
   $("#if_flesion").value=inj.fechaLesion||todayISO();
@@ -819,15 +847,16 @@ function openInjForm(id){
 }
 function closeInjForm(){ $("#injFormOverlay").classList.remove("open"); }
 function saveInjury(){
-  const tipo=$("#if_tipo").value, estructura=$("#if_estructura").value, fl=$("#if_flesion").value;
+  const tipo=$("#if_tipo").value, estructura=$("#if_estructura").value, lado=$("#if_lado").value, fl=$("#if_flesion").value;
+  const porcion=$("#if_porcion").value, grado=$("#if_grado").value;
   let dx=$("#if_dx").value.trim();
-  if(!dx) dx=composeDx(tipo,estructura,$("#if_grado").value);
-  if(!tipo||!fl){ toast("Falta el tipo de lesión o la fecha de lesión"); return; }
+  if(!dx) dx=composeDx(tipo,estructura,grado,porcion,lado);
+  if(!tipo||!estructura||!lado||!fl){ toast("Falta tipo, estructura, lado o fecha de lesión"); return; }
   const reqCirugia=$("#if_reqcirugia").checked;
   const id=editingInjuryId||uid();
   DB.injuries[id]={
     playerId: detailId,
-    tipo, estructura, grado:$("#if_grado").value, diagnostico:dx, mecanismo:$("#if_mecanismo").value,
+    tipo, estructura, porcion, lado, grado, diagnostico:dx, mecanismo:$("#if_mecanismo").value,
     fechaLesion:fl, fechaAlta:$("#if_falta").value||"",
     antecedente:$("#if_antecedente").value,
     fechaCirugia: reqCirugia? $("#if_fcirugia").value : "",
