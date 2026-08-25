@@ -496,7 +496,44 @@ function computeEstado(pid){
   return recentRehab ? "rehab" : "lesionado";
 }
 
-const UMBRAL_SIN_SEGUIMIENTO=7, UMBRAL_LESION_PROLONGADA=45, UMBRAL_EVA_ALTO=6, UMBRAL_RECIDIVA_DIAS=90;
+const UMBRAL_SIN_SEGUIMIENTO=7, UMBRAL_EVA_ALTO=6;
+
+/* Umbrales de evolución esperada por tipo de lesión, basados en literatura de fútbol profesional
+   (UEFA Elite Club Injury Study / Ekstrand, Hägglund, Waldén et al.; estudios de RTP post-LCA).
+   "expected" = tiempo medio reportado. "prolongada" = recién se alerta bien por encima de ese
+   promedio (no al primer día que lo supera). "recidiva" = ventana de reincidencia a vigilar. */
+function estimarUmbrales(inj){
+  const estr=(inj.estructura||'').toLowerCase();
+  const tipo=(inj.tipo||'').toLowerCase();
+  const grado=inj.grado;
+
+  // Ligamentos de rodilla / meniscos
+  if(estr.includes('lca')) return {expected:210, prolongada:300, recidiva:180,
+    ref:'RTP medio tras reconstrucción de LCA en fútbol profesional: ~210-290 días (Waldén/Ekstrand, UEFA ECIS)'};
+  if(estr.includes('lcp')) return {expected:150, prolongada:220, recidiva:150, ref:'LCP: recuperación algo menor a LCA, muy variable según grado'};
+  if(estr.includes('menisco')) return {expected:90, prolongada:150, recidiva:120, ref:'Menisco: 4-8 sem (meniscectomía) a 4-6 meses (sutura)'};
+  if(estr.includes('lcm')||estr.includes('colateral medial')) return {expected:35, prolongada:80, recidiva:60,
+    ref:'LCM grado II: ~31-42 días de baja (estudio UEFA ECIS sobre 130 casos)'};
+  if(estr.includes('lcl')||estr.includes('colateral lateral')) return {expected:45, prolongada:90, recidiva:60};
+  if(estr.includes('sindesmosis')) return {expected:45, prolongada:90, recidiva:60, ref:'Sindesmosis de tobillo: recuperación más larga que esguince simple'};
+  if(estr.includes('tobillo')) return {expected:14, prolongada:45, recidiva:45, ref:'Esguince de tobillo simple: 1-3 semanas típico'};
+
+  // Lesiones musculares: escaladas por grado (Ekstrand et al.: isquiotibiales grado 1 ~18d, grado 2 ~24d)
+  if(['desgarro','distensión','contractura','sobrecarga / fatiga muscular'].includes(tipo)){
+    if(grado==='III') return {expected:75, prolongada:120, recidiva:60, ref:'Desgarro grado III: semanas a meses, a veces quirúrgico'};
+    if(grado==='II') return {expected:24, prolongada:50, recidiva:60, ref:'Desgarro grado II: ~24 días de media (Ekstrand, hamstring)'};
+    if(grado==='I') return {expected:14, prolongada:30, recidiva:60, ref:'Desgarro grado I: ~14-18 días de media (Ekstrand, hamstring)'};
+    return {expected:20, prolongada:45, recidiva:60};
+  }
+  if(tipo==='tendinopatía'||tipo==='fascitis') return {expected:45, prolongada:100, recidiva:90, ref:'Cuadro de sobreuso, curso habitualmente más largo y no lineal'};
+  if(tipo==='pubalgia') return {expected:45, prolongada:110, recidiva:90, ref:'Pubalgia: curso frecuentemente prolongado/recidivante'};
+  if(tipo==='fractura') return {expected:56, prolongada:100, recidiva:120};
+  if(tipo==='luxación') return {expected:35, prolongada:80, recidiva:90};
+  if(tipo==='contusión') return {expected:10, prolongada:30, recidiva:30};
+  if(tipo==='ruptura ligamentaria'||tipo==='esguince ligamentario') return {expected:60, prolongada:120, recidiva:90};
+  return {expected:30, prolongada:60, recidiva:90};
+}
+
 function computeAlerts(pid){
   const alerts=[];
   const open=openInjuriesOf(pid);
@@ -506,8 +543,9 @@ function computeAlerts(pid){
   if(open.length){
     open.forEach(inj=>{
       const dias=daysBetween(inj.fechaLesion);
-      if(dias>UMBRAL_LESION_PROLONGADA) alerts.push({tipo:'prolongada', sev:'warn',
-        texto:`Lesión prolongada: ${dias} días sin alta (${inj.diagnostico})`});
+      const umb=estimarUmbrales(inj);
+      if(dias>umb.prolongada) alerts.push({tipo:'prolongada', sev:'warn',
+        texto:`Evolución más larga de lo esperado: ${dias} días (esperable ~${umb.expected} d para este tipo de lesión) — ${inj.diagnostico}`});
     });
     const last=sess[0];
     if(!last){
@@ -531,14 +569,15 @@ function computeAlerts(pid){
     }
   }
 
-  // Recidiva: misma estructura, nuevo episodio dentro de los 90 días post alta
+  // Recidiva: misma estructura, nuevo episodio dentro de la ventana esperada para ese tipo de lesión
   const closed = allInj.filter(i=>i.fechaAlta).sort((a,b)=>(a.fechaAlta||"").localeCompare(b.fechaAlta||""));
   allInj.forEach(inj=>{
     if(!inj.estructura) return;
     const prevAlta = closed.find(c=> c.id!==inj.id && c.estructura===inj.estructura && c.fechaAlta<=inj.fechaLesion);
     if(prevAlta){
       const gap=daysBetween(prevAlta.fechaAlta, inj.fechaLesion);
-      if(gap!=null && gap<=UMBRAL_RECIDIVA_DIAS) alerts.push({tipo:'recidiva', sev:'danger',
+      const umb=estimarUmbrales(inj);
+      if(gap!=null && gap<=umb.recidiva) alerts.push({tipo:'recidiva', sev:'danger',
         texto:`Posible recidiva: ${inj.estructura} reincidió a los ${gap} días del alta anterior`});
     }
   });
@@ -868,9 +907,11 @@ function renderEvolucion(pid, sessions, injuries){
     const diasLesionado = daysBetween(open.fechaLesion);
     const primerCarrera = sesOfInj.find(s=>s.inicioCarrera);
     const diasHastaCarrera = primerCarrera? daysBetween(open.fechaLesion, primerCarrera.fecha) : null;
+    const umb = estimarUmbrales(open);
     return `<div class="section">
       <h3>Lesión en curso</h3>
-      <div class="edx" style="margin-bottom:8px">${esc(open.diagnostico)}</div>
+      <div class="edx" style="margin-bottom:2px">${esc(open.diagnostico)}</div>
+      <div class="small muted" style="margin-bottom:8px">Evolución esperable para este tipo de lesión: ~${umb.expected} días${umb.ref? ' · '+umb.ref : ''}</div>
       <div class="kpis" style="margin-bottom:0">
         <div class="kpi warn"><div class="n">${diasLesionado}</div><div class="l">Días (${fmtDuracion(diasLesionado,true)})</div></div>
         <div class="kpi"><div class="n">${etapaActual? '' : '—'}</div><div class="l" style="font-size:11px;text-transform:none;font-weight:700;color:var(--verde)">${etapaActual||'Sin etapa registrada'}</div></div>
@@ -1289,7 +1330,7 @@ function _renderStats(){
 }
 
 /* ================= Boot ================= */
-const APP_BUILD = "2026-08-25-6";
+const APP_BUILD = "2026-08-25-7";
 function showLogin(){ $("#loginView").classList.remove("hidden"); $("#appView").classList.add("hidden"); const b=$("#loginBuild"); if(b) b.textContent="v"+APP_BUILD; }
 function showApp(){ $("#loginView").classList.add("hidden"); $("#appView").classList.remove("hidden"); const b=$("#headerBuild"); if(b) b.textContent="v"+APP_BUILD; render(); }
 
