@@ -827,9 +827,9 @@ function injEpisodeHTML(inj){
       ${inj.notas? `<div class="small" style="margin-top:4px">${esc(inj.notas)}</div>`:""}
       ${esLCA(inj)? `
         <div class="fases-wrap">
-          <button class="btn sm line block" onclick="toggleFasesLCA('${inj.id}')">📋 Ver hitos de recuperación (LCA)</button>
+          <button class="btn sm line block" onclick="toggleFasesLCA('${inj.id}')">📋 Ver hitos de recuperación (LCA) — ${contarHitosCumplidos(inj)}/${FASES_LCA.length}</button>
           <div id="fases_${inj.id}" class="hidden" style="margin-top:8px">
-            ${renderFasesLCA(inj.fechaAlta? null : daysBetween(inj.fechaLesion), !!inj.fechaAlta)}
+            ${renderFasesLCA(inj)}
           </div>
         </div>
       `:""}
@@ -867,19 +867,29 @@ const FASES_LCA = [
     criterio:'LSI ≥90% en fuerza y hop tests + cuestionario ACL-RSI. No cumplir estos criterios multiplica x4 el riesgo de nueva rotura (Kyritsis 2016)'},
 ];
 function esLCA(inj){ return (inj.estructura||'').toLowerCase().includes('lca'); }
-function renderFasesLCA(diasLesionado, cerrada){
-  const currentIdx = cerrada? -1 : FASES_LCA.findIndex(f=> (diasLesionado==null?0:diasLesionado) <= f.maxDias);
+function contarHitosCumplidos(inj){
+  const hitos = inj.hitosLCA||{};
+  return FASES_LCA.filter(f=>hitos[f.n]).length;
+}
+function renderFasesLCA(inj){
+  const hitos = inj.hitosLCA||{};
+  let currentIdx = FASES_LCA.findIndex(f=>!hitos[f.n]);
+  if(currentIdx===-1) currentIdx = FASES_LCA.length;
   return `
-    <div class="fases-ref">Referencia: Grindem et al. 2016 (Br J Sports Med) y Kyritsis et al. 2016 — criterios de retorno al deporte tras reconstrucción de LCA. Son rangos orientativos, no reemplazan el criterio clínico ni las pruebas funcionales.</div>
+    <div class="fases-ref">Referencia: Grindem et al. 2016 (Br J Sports Med) y Kyritsis et al. 2016 — criterios de retorno al deporte tras reconstrucción de LCA. Marcá cada hito cuando se cumpla en la evaluación clínica; los rangos de tiempo son solo orientativos.</div>
     ${FASES_LCA.map((f,i)=>{
-      const cls = cerrada? '' : (i<currentIdx? 'done' : i===currentIdx? 'current' : '');
+      const done = !!hitos[f.n];
+      const cls = done? 'done' : (i===currentIdx? 'current' : '');
       return `<div class="fase-row ${cls}">
-        <div class="fase-num">${i<currentIdx&&!cerrada? '✓' : f.n}</div>
-        <div>
-          <div class="fase-title">${esc(f.nombre)} <span class="rango">· ${esc(f.rango)}</span></div>
-          <div class="fase-hito">${esc(f.hito)}</div>
-          <div class="fase-criterio">Criterio para avanzar: ${esc(f.criterio)}</div>
-        </div>
+        <label style="display:flex;gap:9px;width:100%;cursor:pointer">
+          <input type="checkbox" ${done?'checked':''} onchange="toggleHitoLCA('${inj.id}',${f.n},this.checked)"
+            style="width:20px;height:20px;flex-shrink:0;margin-top:1px">
+          <div>
+            <div class="fase-title">${esc(f.nombre)} <span class="rango">· ${esc(f.rango)}</span></div>
+            <div class="fase-hito">${esc(f.hito)}</div>
+            <div class="fase-criterio">Criterio para avanzar: ${esc(f.criterio)}</div>
+          </div>
+        </label>
       </div>`;
     }).join("")}
   `;
@@ -887,6 +897,16 @@ function renderFasesLCA(diasLesionado, cerrada){
 function toggleFasesLCA(injId){
   const el = $("#fases_"+injId);
   if(el) el.classList.toggle("hidden");
+}
+function toggleHitoLCA(injId, n, checked){
+  if(!DB.injuries[injId]) return;
+  if(!DB.injuries[injId].hitosLCA) DB.injuries[injId].hitosLCA={};
+  DB.injuries[injId].hitosLCA[n]=checked;
+  save();
+  detTab='lesiones'; renderDetail();
+  // Reabrir el desplegable de esta lesión ya que renderDetail vuelve a colapsar todo
+  const el = $("#fases_"+injId);
+  if(el) el.classList.remove("hidden");
 }
 
 function darAlta(injId){
@@ -1399,7 +1419,7 @@ function _renderStats(){
 }
 
 /* ================= Boot ================= */
-const APP_BUILD = "2026-08-25-8";
+const APP_BUILD = "2026-08-25-9";
 function showLogin(){ $("#loginView").classList.remove("hidden"); $("#appView").classList.add("hidden"); const b=$("#loginBuild"); if(b) b.textContent="v"+APP_BUILD; }
 function showApp(){ $("#loginView").classList.add("hidden"); $("#appView").classList.remove("hidden"); const b=$("#headerBuild"); if(b) b.textContent="v"+APP_BUILD; render(); }
 
