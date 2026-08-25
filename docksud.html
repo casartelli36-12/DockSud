@@ -207,7 +207,7 @@ window.__FB_CONFIG = {
     </svg>
     <div class="h-titles">
       <div class="h-eyebrow">Club Sportivo Dock Sud</div>
-      <div class="h-title">Kinesiología</div>
+      <div class="h-title">Kinesiología <span id="headerBuild" style="font-size:9px;font-weight:400;opacity:.6"></span></div>
     </div>
     <div class="h-actions">
       <button class="btn ghost sm" onclick="doLogout()">Salir</button>
@@ -1213,9 +1213,9 @@ function _renderStats(){
 }
 
 /* ================= Boot ================= */
-const APP_BUILD = "2026-08-25-3";
+const APP_BUILD = "2026-08-25-4";
 function showLogin(){ $("#loginView").classList.remove("hidden"); $("#appView").classList.add("hidden"); const b=$("#loginBuild"); if(b) b.textContent="v"+APP_BUILD; }
-function showApp(){ $("#loginView").classList.add("hidden"); $("#appView").classList.remove("hidden"); render(); }
+function showApp(){ $("#loginView").classList.add("hidden"); $("#appView").classList.remove("hidden"); const b=$("#headerBuild"); if(b) b.textContent="v"+APP_BUILD; render(); }
 
 window.addEventListener('error', function(e){
   console.error('Error global:', e.error||e.message);
