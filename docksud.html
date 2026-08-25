@@ -4,10 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Dock Sud · Kinesiología</title>
-<meta name="theme-color" content="#0a3d1f">
+<meta name="theme-color" content="#0a2a5e">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Kine Dock Sud">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 4 L92 18 V52 C92 76 74 92 50 98 C26 92 8 76 8 52 V18 Z' fill='%230a2a5e'/%3E%3Cpath d='M50 10 L86 22 V52 C86 72 71 86 50 92 C29 86 14 72 14 52 V22 Z' fill='%23f5b800'/%3E%3Ctext x='50' y='63' font-family='Arial,sans-serif' font-size='34' font-weight='900' fill='%230a2a5e' text-anchor='middle'%3ECSDS%3C/text%3E%3C/svg%3E">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -24,10 +25,10 @@ window.__FB_CONFIG = {
 </script>
 <style>
   :root{
-    --verde:#0a3d1f; --verde-2:#0f5c2e; --verde-claro:#4caf50; --verde-soft:#eaf7ee;
-    --ink:#1b2320; --muted:#6b7570; --line:#e2e8e3; --bg:#eef2ef; --white:#fff;
+    --verde:#0a2a5e; --verde-2:#123b7a; --verde-claro:#f5b800; --verde-soft:#eaf0fb;
+    --ink:#182233; --muted:#6b7280; --line:#e3e7ee; --bg:#eef1f6; --white:#fff;
     --red:#e24b4a; --amber:#ef9f27; --blue:#378add; --green:#1d9e75;
-    --radius:12px; --shadow:0 1px 3px rgba(10,61,31,.08),0 6px 20px rgba(10,61,31,.06);
+    --radius:14px; --shadow:0 1px 3px rgba(10,42,94,.08),0 8px 24px rgba(10,42,94,.08);
     --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
   *{box-sizing:border-box}
@@ -35,16 +36,18 @@ window.__FB_CONFIG = {
   button{font-family:inherit;cursor:pointer}
   input,select,textarea{font-family:inherit}
 
-  header.app{background:var(--verde);color:#fff;padding:12px 14px;display:flex;align-items:center;gap:10px;
-    position:sticky;top:0;z-index:20;border-bottom:3px solid var(--verde-claro)}
+  header.app{background:linear-gradient(135deg,var(--verde),var(--verde-2));color:#fff;padding:12px 14px;
+    display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:20;
+    border-bottom:3px solid var(--verde-claro);box-shadow:0 2px 12px rgba(10,42,94,.25)}
+  header.app .crest{width:38px;height:38px;flex-shrink:0;filter:drop-shadow(0 1px 2px rgba(0,0,0,.3))}
   .h-titles{line-height:1.15;flex:1;min-width:0}
   .h-eyebrow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--verde-claro);font-weight:700}
   .h-title{font-size:16px;font-weight:700}
   .h-actions{display:flex;gap:6px;flex-wrap:wrap}
 
-  .btn{border:1px solid transparent;border-radius:8px;padding:8px 12px;font-size:13px;font-weight:600;
-    background:var(--verde-claro);color:#fff;transition:.15s;white-space:nowrap}
-  .btn:hover{background:#3d9942}
+  .btn{border:1px solid transparent;border-radius:9px;padding:8px 12px;font-size:13px;font-weight:700;
+    background:var(--verde-claro);color:var(--verde);transition:.15s;white-space:nowrap}
+  .btn:hover{background:#dba700}
   .btn.ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.35)}
   .btn.ghost:hover{background:rgba(255,255,255,.12)}
   .btn.line{background:#fff;color:var(--verde);border-color:var(--line)}
@@ -57,11 +60,11 @@ window.__FB_CONFIG = {
   main{max-width:900px;margin:0 auto;padding:12px}
 
   /* Nav tabs */
-  .navtabs{display:flex;gap:6px;background:#fff;border:1px solid var(--line);border-radius:10px;
-    padding:4px;margin-bottom:12px;position:sticky;top:52px;z-index:15;box-shadow:var(--shadow)}
-  .navtabs button{flex:1;background:transparent;border:none;padding:9px 4px;border-radius:8px;
-    font-size:12.5px;font-weight:700;color:var(--muted)}
-  .navtabs button.active{background:var(--verde);color:#fff}
+  .navtabs{display:flex;gap:6px;background:#fff;border:1px solid var(--line);border-radius:12px;
+    padding:4px;margin-bottom:12px;position:sticky;top:62px;z-index:15;box-shadow:var(--shadow)}
+  .navtabs button{flex:1;background:transparent;border:none;padding:10px 4px;border-radius:9px;
+    font-size:12.5px;font-weight:700;color:var(--muted);transition:.15s}
+  .navtabs button.active{background:var(--verde);color:#fff;box-shadow:0 2px 8px rgba(10,42,94,.3)}
 
   .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px}
   @media(min-width:640px){.kpis{grid-template-columns:repeat(4,1fr)}}
@@ -76,8 +79,9 @@ window.__FB_CONFIG = {
   .toolbar select{padding:9px 10px;border:1px solid var(--line);border-radius:8px;font-size:13px;background:#fff;color:var(--ink)}
 
   .list{display:flex;flex-direction:column;gap:8px}
-  .card{background:#fff;border:1px solid var(--line);border-left:4px solid var(--line);border-radius:10px;
-    padding:11px 12px;box-shadow:var(--shadow);cursor:pointer}
+  .card{background:#fff;border:1px solid var(--line);border-left:4px solid var(--line);border-radius:12px;
+    padding:12px 13px;box-shadow:var(--shadow);cursor:pointer;transition:.15s}
+  .card:hover{box-shadow:0 4px 16px rgba(10,42,94,.14)}
   .card:active{transform:scale(.995)}
   .card.st-activo{border-left-color:var(--green)}
   .card.st-lesionado{border-left-color:var(--red)}
@@ -168,8 +172,10 @@ window.__FB_CONFIG = {
     transition:.25s;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.25)}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
-  .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--verde);padding:20px}
-  .login-box{background:#fff;border-radius:16px;padding:28px 22px;width:100%;max-width:340px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;
+    background:linear-gradient(160deg,var(--verde),var(--verde-2) 60%,#081d43);padding:20px}
+  .login-box{background:#fff;border-radius:18px;padding:30px 24px;width:100%;max-width:340px;box-shadow:0 24px 70px rgba(0,0,0,.4)}
+  .login-crest{width:64px;height:64px;display:block;margin:0 auto 12px}
   .login-box h1{color:var(--verde);font-size:18px;margin:0 0 2px;text-align:center}
   .login-box p{color:var(--muted);font-size:12.5px;text-align:center;margin:0 0 18px}
   .login-err{color:var(--red);font-size:12.5px;margin-top:6px;min-height:16px}
@@ -184,6 +190,11 @@ window.__FB_CONFIG = {
 
 <div id="loginView" class="login-wrap hidden">
   <div class="login-box">
+    <svg class="login-crest" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <path d="M50 4 L92 18 V52 C92 76 74 92 50 98 C26 92 8 76 8 52 V18 Z" fill="#f5b800"/>
+      <path d="M50 10 L86 22 V52 C86 72 71 86 50 92 C29 86 14 72 14 52 V22 Z" fill="#0a2a5e"/>
+      <text x="50" y="60" font-family="Arial,sans-serif" font-size="26" font-weight="900" fill="#f5b800" text-anchor="middle">CSDS</text>
+    </svg>
     <h1>Dock Sud · Kinesiología</h1>
     <p>Ingresá con tu cuenta del departamento</p>
     <div class="field"><label>Email</label><input id="loginEmail" type="email" autocomplete="username"></div>
@@ -195,8 +206,13 @@ window.__FB_CONFIG = {
 
 <div id="appView" class="hidden">
   <header class="app">
+    <svg class="crest" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <path d="M50 4 L92 18 V52 C92 76 74 92 50 98 C26 92 8 76 8 52 V18 Z" fill="#f5b800"/>
+      <path d="M50 10 L86 22 V52 C86 72 71 86 50 92 C29 86 14 72 14 52 V22 Z" fill="#0a2a5e"/>
+      <text x="50" y="60" font-family="Arial,sans-serif" font-size="26" font-weight="900" fill="#f5b800" text-anchor="middle">CSDS</text>
+    </svg>
     <div class="h-titles">
-      <div class="h-eyebrow">C.A. Dock Sud</div>
+      <div class="h-eyebrow">Club Sportivo Dock Sud</div>
       <div class="h-title">Kinesiología</div>
     </div>
     <div class="h-actions">
