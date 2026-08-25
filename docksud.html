@@ -93,7 +93,8 @@ window.__FB_CONFIG = {
   .badge.activo{background:#e6f7ec;color:var(--green)}
   .badge.lesionado{background:#fdecec;color:var(--red)}
   .badge.rehab{background:#fef3e0;color:#b9760f}
-  .card .dx{font-size:12px;color:var(--muted);margin-top:6px}
+  .card .dx{font-size:12px;color:var(--muted);margin-top:6px;overflow:hidden;text-overflow:ellipsis;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
   .card .meta{display:flex;gap:12px;margin-top:8px;font-size:11px;color:var(--muted)}
   .card .meta b{color:var(--ink)}
 
@@ -523,7 +524,20 @@ function renderPlantel(){
 function cardHTML(p){
   const open=openInjuriesOf(p.id);
   const dx = open.length? open.map(o=>o.diagnostico).join(", ") : "";
+  const diasLesionado = open.length? Math.max(...open.map(o=>daysBetween(o.fechaLesion))) : null;
   const totalInj = playerInjuries(p.id).length;
+  const lastSess = playerSessions(p.id)[0];
+  let lastText="";
+  if(lastSess){
+    if(lastSess.tipoRegistro==='evaluacion'){
+      const parts=[];
+      if(lastSess.lsi!=null) parts.push(`LSI ${lastSess.lsi}%`);
+      if(lastSess.eva!=null) parts.push(`EVA ${lastSess.eva}`);
+      lastText = `📋 ${fmt(lastSess.fecha)} — ${parts.join(' · ')||'Evaluación'}`;
+    } else {
+      lastText = `📝 ${fmt(lastSess.fecha)} — ${lastSess.descripcion||'Sesión registrada'}`;
+    }
+  }
   return `
     <div class="card st-${p._estado}" onclick="openDetail('${p.id}')">
       <div class="row1">
@@ -533,7 +547,8 @@ function cardHTML(p){
         </div>
         <span class="badge ${p._estado}">${p._estado==='activo'?'Disponible':p._estado==='rehab'?'En rehab':'Lesionado'}</span>
       </div>
-      ${dx? `<div class="dx">🩹 ${esc(dx)}</div>`:""}
+      ${dx? `<div class="dx">🩹 ${esc(dx)}${diasLesionado!=null? ` · <b>${diasLesionado} días</b>`:''}</div>`:""}
+      ${lastText? `<div class="dx" style="margin-top:3px">${esc(lastText)}</div>`:""}
       <div class="meta"><span>Lesiones históricas: <b>${totalInj}</b></span></div>
     </div>
   `;
