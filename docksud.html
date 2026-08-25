@@ -360,10 +360,11 @@ window.__FB_CONFIG = {
         </div>
       </div>
       <div id="sf_eval_block" class="hidden">
-        <div class="grid2">
-          <div class="field"><label>LSI (%)</label><input id="sf_lsi" type="number" min="0" max="150"></div>
-          <div class="field"><label>EVA dolor (0-10)</label><input id="sf_eva" type="number" min="0" max="10"></div>
-        </div>
+        <div class="field"><label>LSI (%)</label><input id="sf_lsi" type="number" min="0" max="150"></div>
+      </div>
+      <div class="field">
+        <label>EVA dolor (0-10) — ¿cuánto dolor sintió?</label>
+        <input id="sf_eva" type="number" min="0" max="10">
       </div>
       <div class="field"><label>Notas</label><textarea id="sf_notas"></textarea></div>
       <div style="display:flex;gap:8px;margin-top:6px">
@@ -466,6 +467,56 @@ function computeEstado(pid){
   return recentRehab ? "rehab" : "lesionado";
 }
 
+const UMBRAL_SIN_SEGUIMIENTO=7, UMBRAL_LESION_PROLONGADA=45, UMBRAL_EVA_ALTO=6, UMBRAL_RECIDIVA_DIAS=90;
+function computeAlerts(pid){
+  const alerts=[];
+  const open=openInjuriesOf(pid);
+  const allInj=playerInjuries(pid);
+  const sess=playerSessions(pid); // ya ordenado desc por fecha
+
+  if(open.length){
+    open.forEach(inj=>{
+      const dias=daysBetween(inj.fechaLesion);
+      if(dias>UMBRAL_LESION_PROLONGADA) alerts.push({tipo:'prolongada', sev:'warn',
+        texto:`Lesión prolongada: ${dias} días sin alta (${inj.diagnostico})`});
+    });
+    const last=sess[0];
+    if(!last){
+      alerts.push({tipo:'seguimiento', sev:'warn', texto:'Lesionado sin ninguna sesión registrada'});
+    } else {
+      const diasSin=daysBetween(last.fecha);
+      if(diasSin>UMBRAL_SIN_SEGUIMIENTO) alerts.push({tipo:'seguimiento', sev:'warn',
+        texto:`Sin seguimiento hace ${diasSin} días`});
+    }
+  }
+
+  const evaChron = sess.filter(s=>s.eva!=null).slice().reverse(); // ascendente cronológico
+  if(evaChron.length){
+    const lastEva=evaChron[evaChron.length-1];
+    if(lastEva.eva>=UMBRAL_EVA_ALTO) alerts.push({tipo:'dolor', sev:'danger',
+      texto:`Dolor elevado: EVA ${lastEva.eva} (${fmt(lastEva.fecha)})`});
+    if(evaChron.length>=3){
+      const last3=evaChron.slice(-3).map(s=>s.eva);
+      if(last3[0]<last3[1] && last3[1]<last3[2]) alerts.push({tipo:'dolor_tendencia', sev:'danger',
+        texto:`Dolor en aumento: EVA ${last3.join(' → ')}`});
+    }
+  }
+
+  // Recidiva: misma estructura, nuevo episodio dentro de los 90 días post alta
+  const closed = allInj.filter(i=>i.fechaAlta).sort((a,b)=>(a.fechaAlta||"").localeCompare(b.fechaAlta||""));
+  allInj.forEach(inj=>{
+    if(!inj.estructura) return;
+    const prevAlta = closed.find(c=> c.id!==inj.id && c.estructura===inj.estructura && c.fechaAlta<=inj.fechaLesion);
+    if(prevAlta){
+      const gap=daysBetween(prevAlta.fechaAlta, inj.fechaLesion);
+      if(gap!=null && gap<=UMBRAL_RECIDIVA_DIAS) alerts.push({tipo:'recidiva', sev:'danger',
+        texto:`Posible recidiva: ${inj.estructura} reincidió a los ${gap} días del alta anterior`});
+    }
+  });
+
+  return alerts;
+}
+
 /* ================= View state ================= */
 let currentView="plantel", detailId=null, sessTipo="entrenamiento";
 
@@ -527,6 +578,7 @@ function cardHTML(p){
   const diasLesionado = open.length? Math.max(...open.map(o=>daysBetween(o.fechaLesion))) : null;
   const totalInj = playerInjuries(p.id).length;
   const lastSess = playerSessions(p.id)[0];
+  const alerts = computeAlerts(p.id);
   let lastText="";
   if(lastSess){
     if(lastSess.tipoRegistro==='evaluacion'){
@@ -545,7 +597,10 @@ function cardHTML(p){
           <div class="name">${esc(p.nombre||"Sin nombre")}</div>
           <div class="pos">${esc(p.posicion||"—")}</div>
         </div>
-        <span class="badge ${p._estado}">${p._estado==='activo'?'Disponible':p._estado==='rehab'?'En rehab':'Lesionado'}</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          ${alerts.length? `<span title="${esc(alerts.map(a=>a.texto).join(' · '))}" style="font-size:15px">⚠️</span>`:""}
+          <span class="badge ${p._estado}">${p._estado==='activo'?'Disponible':p._estado==='rehab'?'En rehab':'Lesionado'}</span>
+        </div>
       </div>
       ${dx? `<div class="dx">🩹 ${esc(dx)}${diasLesionado!=null? ` · <b>${diasLesionado} días</b>`:''}</div>`:""}
       ${lastText? `<div class="dx" style="margin-top:3px">${esc(lastText)}</div>`:""}
@@ -682,11 +737,11 @@ function sessHTML(s){
   let chips=[];
   if(isEval){
     if(s.lsi!=null) chips.push(`LSI ${s.lsi}%`);
-    if(s.eva!=null) chips.push(`EVA ${s.eva}`);
   } else {
     if(s.duracion) chips.push(`${s.duracion} min`);
     if(s.rpe!=null) chips.push(`RPE ${s.rpe}`);
   }
+  if(s.eva!=null) chips.push(`EVA ${s.eva}`);
   const inj = s.injuryId? DB.injuries[s.injuryId] : null;
   return `
     <div class="sess">
@@ -715,11 +770,23 @@ function deleteSession(id){
 function renderEvolucion(pid, sessions, injuries){
   const trainings = sessions.filter(s=>s.tipoRegistro!=="evaluacion").slice().reverse();
   const evals = sessions.filter(s=>s.tipoRegistro==="evaluacion").slice().reverse();
+  const allChrono = sessions.slice().reverse();
 
   const cargaInterna = trainings.map(s=>({x:s.fecha, y:(num(s.duracion)||0)*(num(s.rpe)||0)})); // sRPE
   const lsi = evals.filter(e=>e.lsi!=null).map(e=>({x:e.fecha, y:num(e.lsi)}));
+  const dolor = allChrono.filter(s=>s.eva!=null).map(s=>({x:s.fecha, y:num(s.eva)}));
 
   let html="";
+
+  const alerts = computeAlerts(pid);
+  if(alerts.length){
+    html += `<div class="section" style="border-left:4px solid var(--red)">
+      <h3>⚠️ Alarmas</h3>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        ${alerts.map(a=>`<div class="small" style="color:${a.sev==='danger'?'var(--red)':'#b9760f'};font-weight:600">${esc(a.texto)}</div>`).join("")}
+      </div>
+    </div>`;
+  }
 
   // Lesión abierta: etapa actual, días lesionado, días hasta inicio de carrera
   const open = injuries.find(i=>!i.fechaAlta);
@@ -742,6 +809,7 @@ function renderEvolucion(pid, sessions, injuries){
     </div>`;
   }
 
+  if(dolor.length) html+=`<div class="section"><h3>Dolor (EVA 0-10)</h3>${lineChartSVG(dolor,'#e24b4a',10)}</div>`;
   html+=`<div class="section"><h3>Carga interna (sRPE = duración × RPE)</h3>${lineChartSVG(cargaInterna,'#123b7a')}</div>`;
   if(lsi.length) html+=`<div class="section"><h3>LSI (%)</h3>${lineChartSVG(lsi,'#ef9f27',100)}</div>`;
 
@@ -942,14 +1010,15 @@ function saveSession(){
   if(!fecha){ toast("Falta la fecha"); return; }
   if(sessTipo==='entrenamiento' && !desc){ toast("Contá qué se hizo en la sesión"); return; }
   const id=uid();
-  const base={ playerId:detailId, tipoRegistro:sessTipo, fecha, injuryId:$("#sf_injury").value||null, notas:$("#sf_notas").value };
+  const base={ playerId:detailId, tipoRegistro:sessTipo, fecha, injuryId:$("#sf_injury").value||null,
+    notas:$("#sf_notas").value, eva:num($("#sf_eva").value) };
   if(sessTipo==='evaluacion'){
-    DB.sessions[id]={...base, lsi:num($("#sf_lsi").value), eva:num($("#sf_eva").value)};
+    DB.sessions[id]={...base, lsi:num($("#sf_lsi").value)};
   } else {
     DB.sessions[id]={...base, descripcion:desc, etapa:$("#sf_etapa").value, inicioCarrera:$("#sf_inicio_carrera").checked,
       duracion:num($("#sf_duracion").value), rpe:num($("#sf_rpe").value)};
   }
-  save(); closeSessForm(); detTab='sesiones'; renderDetail();
+  save(); closeSessForm(); detTab='sesiones'; renderDetail(); renderPlantel();
   toast("Registro guardado");
 }
 
@@ -990,7 +1059,32 @@ function renderStats(){
     return {nombre:p.nombre, veces:inj.length, dias};
   }).filter(r=>r.veces>0).sort((a,b)=>b.dias-a.dias);
 
+  // Alarmas activas de todo el plantel
+  const alertRows=[];
+  players.forEach(p=>{
+    const a=computeAlerts(p.id);
+    if(a.length) alertRows.push({nombre:p.nombre, alerts:a});
+  });
+  alertRows.sort((a,b)=> Math.max(...b.alerts.map(x=>x.sev==='danger'?2:1)) - Math.max(...a.alerts.map(x=>x.sev==='danger'?2:1)));
+
   let html = `
+    ${alertRows.length? `
+    <div class="section" style="border-left:4px solid var(--red)">
+      <h3>⚠️ Alarmas activas (${alertRows.length})</h3>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        ${alertRows.map(r=>`
+          <div>
+            <div style="font-weight:700;font-size:13px;color:var(--verde)">${esc(r.nombre)}</div>
+            ${r.alerts.map(a=>`<div class="small" style="color:${a.sev==='danger'?'var(--red)':'#b9760f'};font-weight:600;margin-top:2px">${esc(a.texto)}</div>`).join("")}
+          </div>
+        `).join("")}
+      </div>
+    </div>` : `
+    <div class="section" style="border-left:4px solid var(--green)">
+      <h3>✅ Sin alarmas activas</h3>
+      <p class="muted small" style="margin:0">Ningún jugador presenta dolor elevado, seguimiento atrasado, recidivas o lesiones prolongadas.</p>
+    </div>`}
+
     <div class="kpis">
       <div class="kpi warn"><div class="n">${openInj.length}</div><div class="l">Lesionados hoy</div></div>
       <div class="kpi"><div class="n">${injuries.length}</div><div class="l">Episodios históricos</div></div>
