@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="app Flavia">
+<meta name="theme-color" content="#2F6F6A">
+<title>app Flavia</title>
+<style>
+:root{--ink:#1F2A2A;--bg:#F4F7F6;--card:#fff;--line:#DCE5E3;--acc:#2F6F6A;--acc2:#E4F0EE;--mut:#6B7B79;--red:#B3412F}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;font-size:16px}
+body{padding-bottom:env(safe-area-inset-bottom)}
+header{position:sticky;top:0;z-index:5;background:var(--acc);color:#fff;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;display:flex;align-items:center;gap:10px}
+header h1{font-size:18px;margin:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header button{background:rgba(255,255,255,.18);color:#fff;border:0;border-radius:10px;padding:8px 12px;font-size:15px}
+main{max-width:640px;margin:0 auto;padding:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+input,textarea,select{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
+textarea{min-height:80px;resize:vertical}
+label{display:block;font-size:12px;color:var(--mut);margin:10px 0 4px}
+label:first-child{margin-top:0}
+.btn{background:var(--acc);color:#fff;border:0;border-radius:12px;padding:12px 14px;font-size:16px;width:100%;margin-top:6px}
+.btn.sec{background:var(--acc2);color:var(--acc)}
+.btn.del{background:#fff;color:var(--red);border:1px solid var(--red)}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button{flex:1;padding:10px;border:1px solid var(--line);background:#fff;border-radius:12px;font-size:15px;color:var(--mut)}
+.tabs button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.pi{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:8px;font:inherit;color:var(--ink)}
+.pi b{display:block}.pi small{color:var(--mut)}
+.alert{background:#FBE9E5;color:var(--red);border-radius:10px;padding:8px 10px;font-size:14px;margin-bottom:10px}
+.row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.ex{border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;background:#FAFCFB}
+.ex .top{display:flex;gap:6px;align-items:center}
+.ex .top input{flex:1}
+.mini{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:15px;color:var(--mut)}
+details.ses{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:8px}
+details.ses summary{padding:12px;font-weight:600;list-style:none;cursor:pointer}
+details.ses summary small{font-weight:400;color:var(--mut);display:block}
+details.ses .in{padding:0 12px 12px}
+.empty{text-align:center;color:var(--mut);padding:30px 10px}
+.fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));background:var(--acc);color:#fff;border:0;border-radius:28px;padding:14px 20px;font-size:16px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.link{background:none;border:0;color:var(--mut);text-decoration:underline;font-size:14px;width:100%;padding:14px}
+</style>
+</head>
+<body>
+<header><button id="hBack" style="display:none" onclick="volver()">‹</button><h1 id="hTit">app Flavia</h1></header>
+<main id="app"></main>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+var LS='appflavia_cfg';
+var db=null,P={},cur=null,tab='ficha',abiertas={},conectado=false;
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function hoy(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function fmtF(f){if(!f)return 'Sin fecha';var p=f.split('-');return p.length===3?p[2]+'/'+p[1]+'/'+p[0]:f;}
+
+function norm(p){
+  p.plan=p.plan||[];p.sesiones=p.sesiones||[];p.planNotas=p.planNotas||'';
+  p.sesiones.forEach(function(s){s.ejercicios=s.ejercicios||[];});
+}
+function guardar(p){
+  if(!db)return;
+  db.ref('pacientes/'+p.id).set(JSON.parse(JSON.stringify(p)));
+}
+
+/* ---------- Firebase ---------- */
+function parseCfg(txt){
+  var cfg={},re=/([A-Za-z]+)\s*["']?\s*:\s*["']([^"']+)["']/g,m;
+  while((m=re.exec(txt))){cfg[m[1]]=m[2];}
+  if(!cfg.databaseURL&&cfg.projectId)cfg.databaseURL='https://'+cfg.projectId+'-default-rtdb.firebaseio.com';
+  return cfg;
+}
+function conectar(cfg){
+  try{
+    if(!firebase.apps.length)firebase.initializeApp(cfg);
+    db=firebase.database();
+    db.ref('pacientes').on('value',function(s){
+      P=s.val()||{};
+      Object.keys(P).forEach(function(k){norm(P[k]);});
+      conectado=true;
+      var a=document.activeElement;
+      if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)&&document.getElementById('app').contains(a))return;
+      render();
+    },function(err){alert('No se pudo leer la base: '+err.message);});
+  }catch(e){alert('Error de configuración: '+e.message);localStorage.removeItem(LS);render();}
+}
+function guardarCfg(){
+  var cfg=parseCfg(document.getElementById('cfgTxt').value);
+  if(!cfg.apiKey||!cfg.databaseURL){alert('Pegá la configuración completa de Firebase (tiene que incluir apiKey y databaseURL o projectId).');return;}
+  localStorage.setItem(LS,JSON.stringify(cfg));
+  location.reload();
+}
+function cambiarCfg(){
+  if(confirm('¿Cambiar la configuración de Firebase en este dispositivo?')){localStorage.removeItem(LS);location.reload();}
+}
+
+/* ---------- Navegación ---------- */
+function abrir(id){cur=id;tab='ficha';render();window.scrollTo(0,0);}
+function volver(){cur=null;render();window.scrollTo(0,0);}
+function setTab(t){tab=t;render();}
+
+/* ---------- Edición genérica ---------- */
+function up(path,val){
+  var p=P[cur];if(!p)return;
+  var parts=path.split('.'),o=p;
+  for(var i=0;i<parts.length-1;i++)o=o[parts[i]];
+  o[parts[parts.length-1]]=val;
+  guardar(p);
+  if(path==='nombre')document.getElementById('hTit').textContent=val||'Paciente';
+}
+function nuevoPaciente(){
+  var n=prompt('Nombre del paciente');
+  if(!n||!n.trim())return;
+  var p={id:uid(),nombre:n.trim(),edad:'',contacto:'',dx:'',inicio:hoy(),antecedentes:'',objetivos:'',alerta:'',planNotas:'',plan:[],sesiones:[],creado:Date.now()};
+  P[p.id]=p;guardar(p);abrir(p.id);
+}
+function borrarPaciente(){
+  var p=P[cur];if(!p)return;
+  if(!confirm('¿Eliminar a '+p.nombre+' y todo su historial? No se puede deshacer.'))return;
+  db.ref('pacientes/'+p.id).remove();delete P[p.id];cur=null;render();
+}
+
+/* ---------- Plan ---------- */
+function addEjPlan(){var p=P[cur];p.plan.push({id:uid(),nombre:'',series:'',reps:'',carga:'',nota:''});guardar(p);render();}
+function delEjPlan(i){var p=P[cur];if(!confirm('¿Quitar este ejercicio del plan?'))return;p.plan.splice(i,1);guardar(p);render();}
+function moverEjPlan(i,d){var p=P[cur],j=i+d;if(j<0||j>=p.plan.length)return;var t=p.plan[i];p.plan[i]=p.plan[j];p.plan[j]=t;guardar(p);render();}
+
+/* ---------- Sesiones ---------- */
+function nuevaSesion(conPlan){
+  var p=P[cur];
+  var s={id:uid(),fecha:hoy(),dolor:'',rpe:'',notas:'',ejercicios:[]};
+  if(conPlan)s.ejercicios=p.plan.map(function(e){return {id:uid(),nombre:e.nombre,series:e.series,reps:e.reps,carga:e.carga,nota:''};});
+  p.sesiones.push(s);abiertas[s.id]=true;guardar(p);render();
+}
+function delSesion(i){var p=P[cur];if(!confirm('¿Eliminar esta sesión?'))return;p.sesiones.splice(i,1);guardar(p);render();}
+function addEjSes(i){var p=P[cur];p.sesiones[i].ejercicios.push({id:uid(),nombre:'',series:'',reps:'',carga:'',nota:''});abiertas[p.sesiones[i].id]=true;guardar(p);render();}
+function delEjSes(i,j){var p=P[cur];p.sesiones[i].ejercicios.splice(j,1);guardar(p);render();}
+function toggleSes(id,open){if(open)abiertas[id]=true;else delete abiertas[id];}
+
+/* ---------- Render ---------- */
+function exHTML(base,e,i,tipo){
+  var h='<div class="ex"><div class="top"><input placeholder="Ejercicio" value="'+esc(e.nombre)+'" onchange="up(\''+base+'.nombre\',this.value)">';
+  if(tipo==='plan'){
+    h+='<button class="mini" onclick="moverEjPlan('+i+',-1)">▲</button><button class="mini" onclick="moverEjPlan('+i+',1)">▼</button><button class="mini" onclick="delEjPlan('+i+')">✕</button>';
+  }
+  h+='</div><div class="row" style="margin-top:6px">'
+    +'<input inputmode="decimal" placeholder="Series" value="'+esc(e.series)+'" onchange="up(\''+base+'.series\',this.value)">'
+    +'<input inputmode="decimal" placeholder="Reps" value="'+esc(e.reps)+'" onchange="up(\''+base+'.reps\',this.value)">'
+    +'<input placeholder="Carga" value="'+esc(e.carga)+'" onchange="up(\''+base+'.carga\',this.value)">'
+    +'</div>';
+  if(tipo==='plan')h+='<input style="margin-top:6px" placeholder="Nota (opcional)" value="'+esc(e.nota)+'" onchange="up(\''+base+'.nota\',this.value)">';
+  h+='</div>';
+  return h;
+}
+
+function vistaLista(){
+  var ids=Object.keys(P).sort(function(a,b){return String(P[a].nombre).toLowerCase()<String(P[b].nombre).toLowerCase()?-1:1;});
+  var h='<input id="q" placeholder="Buscar paciente…" oninput="filtrar(this.value)" style="margin-bottom:10px">';
+  if(!ids.length)h+='<div class="empty">Todavía no hay pacientes.<br>Tocá “+ Paciente” para cargar el primero.</div>';
+  ids.forEach(function(id){
+    var p=P[id],last=p.sesiones.length?p.sesiones.map(function(s){return s.fecha||'';}).sort().pop():'';
+    h+='<button class="pi" data-n="'+esc(String(p.nombre).toLowerCase())+'" onclick="abrir(\''+id+'\')"><b>'+esc(p.nombre)+'</b><small>'+esc(p.dx||'Sin diagnóstico')+' · '+p.sesiones.length+' sesiones'+(last?' · última '+fmtF(last):'')+'</small></button>';
+  });
+  h+='<button class="link" onclick="cambiarCfg()">Cambiar configuración de Firebase</button>';
+  h+='<button class="fab" onclick="nuevoPaciente()">+ Paciente</button>';
+  return h;
+}
+function filtrar(v){
+  v=v.toLowerCase().trim();
+  document.querySelectorAll('.pi').forEach(function(el){el.style.display=el.getAttribute('data-n').indexOf(v)>-1?'block':'none';});
+}
+
+function vistaFicha(p){
+  var h='';
+  if(p.alerta)h+='<div class="alert">⚠ '+esc(p.alerta)+'</div>';
+  h+='<div class="card">'
+   +'<label>Nombre</label><input value="'+esc(p.nombre)+'" onchange="up(\'nombre\',this.value)">'
+   +'<div class="row2"><div><label>Edad</label><input inputmode="numeric" value="'+esc(p.edad)+'" onchange="up(\'edad\',this.value)"></div>'
+   +'<div><label>Contacto</label><input inputmode="tel" value="'+esc(p.contacto)+'" onchange="up(\'contacto\',this.value)"></div></div>'
+   +'<label>Diagnóstico / motivo de consulta</label><textarea onchange="up(\'dx\',this.value)">'+esc(p.dx)+'</textarea>'
+   +'<label>Fecha de inicio</label><input type="date" value="'+esc(p.inicio)+'" onchange="up(\'inicio\',this.value)">'
+   +'<label>Antecedentes</label><textarea onchange="up(\'antecedentes\',this.value)">'+esc(p.antecedentes)+'</textarea>'
+   +'<label>Objetivos</label><textarea onchange="up(\'objetivos\',this.value)">'+esc(p.objetivos)+'</textarea>'
+   +'<label>Alerta (contraindicaciones, cuidados)</label><input value="'+esc(p.alerta)+'" onchange="up(\'alerta\',this.value);render()">'
+   +'</div>'
+   +'<button class="btn del" onclick="borrarPaciente()">Eliminar paciente</button>';
+  return h;
+}
+
+function vistaPlan(p){
+  var h='<div class="card"><label>Notas del plan (fase, criterios, indicaciones)</label><textarea onchange="up(\'planNotas\',this.value)">'+esc(p.planNotas)+'</textarea></div>';
+  if(!p.plan.length)h+='<div class="empty">El plan no tiene ejercicios todavía.</div>';
+  p.plan.forEach(function(e,i){h+=exHTML('plan.'+i,e,i,'plan');});
+  h+='<button class="btn" onclick="addEjPlan()">+ Ejercicio</button>';
+  return h;
+}
+
+function vistaSesiones(p){
+  var h='<button class="btn" onclick="nuevaSesion(false)">+ Nueva sesión</button>';
+  if(p.plan.length)h+='<button class="btn sec" onclick="nuevaSesion(true)">+ Nueva sesión con los ejercicios del plan</button>';
+  h+='<div style="height:12px"></div>';
+  if(!p.sesiones.length)h+='<div class="empty">Sin sesiones registradas.</div>';
+  var orden=p.sesiones.map(function(s,i){return i;}).sort(function(a,b){
+    var fa=p.sesiones[a].fecha||'',fb=p.sesiones[b].fecha||'';
+    return fa<fb?1:fa>fb?-1:b-a;
+  });
+  orden.forEach(function(i){
+    var s=p.sesiones[i],b='sesiones.'+i;
+    var res=[];if(s.dolor!=='')res.push('Dolor '+s.dolor);if(s.rpe!=='')res.push('RPE '+s.rpe);res.push(s.ejercicios.length+' ejercicios');
+    h+='<details class="ses" '+(abiertas[s.id]?'open':'')+' ontoggle="toggleSes(\''+s.id+'\',this.open)"><summary>'+fmtF(s.fecha)+'<small>'+esc(res.join(' · '))+'</small></summary><div class="in">'
+      +'<div class="row"><div><label>Fecha</label><input type="date" value="'+esc(s.fecha)+'" onchange="up(\''+b+'.fecha\',this.value)"></div>'
+      +'<div><label>Dolor 0-10</label><input inputmode="decimal" value="'+esc(s.dolor)+'" onchange="up(\''+b+'.dolor\',this.value)"></div>'
+      +'<div><label>RPE 0-10</label><input inputmode="decimal" value="'+esc(s.rpe)+'" onchange="up(\''+b+'.rpe\',this.value)"></div></div>'
+      +'<label>Ejercicios realizados</label>';
+    s.ejercicios.forEach(function(e,j){
+      h+='<div class="ex"><div class="top"><input placeholder="Ejercicio" value="'+esc(e.nombre)+'" onchange="up(\''+b+'.ejercicios.'+j+'.nombre\',this.value)"><button class="mini" onclick="delEjSes('+i+','+j+')">✕</button></div>'
+        +'<div class="row" style="margin-top:6px">'
+        +'<input inputmode="decimal" placeholder="Series" value="'+esc(e.series)+'" onchange="up(\''+b+'.ejercicios.'+j+'.series\',this.value)">'
+        +'<input inputmode="decimal" placeholder="Reps" value="'+esc(e.reps)+'" onchange="up(\''+b+'.ejercicios.'+j+'.reps\',this.value)">'
+        +'<input placeholder="Carga" value="'+esc(e.carga)+'" onchange="up(\''+b+'.ejercicios.'+j+'.carga\',this.value)"></div></div>';
+    });
+    h+='<button class="btn sec" onclick="addEjSes('+i+')">+ Ejercicio</button>'
+      +'<label>Notas de la sesión</label><textarea onchange="up(\''+b+'.notas\',this.value)">'+esc(s.notas)+'</textarea>'
+      +'<button class="btn del" onclick="delSesion('+i+')">Eliminar sesión</button>'
+      +'</div></details>';
+  });
+  return h;
+}
+
+function vistaSetup(){
+  return '<div class="card"><b>Conectar la base de datos</b><p style="color:var(--mut);font-size:14px">Pegá acá el bloque <code>firebaseConfig</code> del proyecto de Firebase. Se guarda solo en este dispositivo.</p>'
+   +'<textarea id="cfgTxt" style="min-height:180px;font-family:monospace;font-size:13px" placeholder="const firebaseConfig = {\n  apiKey: &quot;...&quot;,\n  authDomain: &quot;...&quot;,\n  databaseURL: &quot;...&quot;,\n  projectId: &quot;...&quot;,\n  appId: &quot;...&quot;\n};"></textarea>'
+   +'<button class="btn" onclick="guardarCfg()">Guardar y conectar</button></div>';
+}
+
+function render(){
+  var app=document.getElementById('app'),back=document.getElementById('hBack'),tit=document.getElementById('hTit');
+  if(!db){back.style.display='none';tit.textContent='app Flavia';app.innerHTML=vistaSetup();return;}
+  if(!conectado){app.innerHTML='<div class="empty">Conectando…</div>';return;}
+  if(!cur||!P[cur]){cur=null;back.style.display='none';tit.textContent='app Flavia';app.innerHTML=vistaLista();return;}
+  var p=P[cur];
+  back.style.display='inline-block';tit.textContent=p.nombre||'Paciente';
+  var h='<div class="tabs">'
+    +['ficha','plan','sesiones'].map(function(t){return '<button class="'+(tab===t?'on':'')+'" onclick="setTab(\''+t+'\')">'+{ficha:'Ficha',plan:'Plan',sesiones:'Sesiones'}[t]+'</button>';}).join('')
+    +'</div>';
+  h+=tab==='ficha'?vistaFicha(p):tab==='plan'?vistaPlan(p):vistaSesiones(p);
+  app.innerHTML=h;
+}
+
+/* ---------- Inicio ---------- */
+(function(){
+  var raw=localStorage.getItem(LS);
+  if(raw){try{conectar(JSON.parse(raw));}catch(e){localStorage.removeItem(LS);}}
+  render();
+})();
+</script>
+</body>
+</html>
