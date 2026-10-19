@@ -66,7 +66,7 @@ function norm(p){
 }
 function guardar(p){
   if(!db)return;
-  db.ref('pacientes/'+p.id).set(JSON.parse(JSON.stringify(p)));
+  db.ref('appflavia/pacientes/'+p.id).set(JSON.parse(JSON.stringify(p)));
 }
 
 /* ---------- Firebase ---------- */
@@ -80,7 +80,7 @@ function conectar(cfg){
   try{
     if(!firebase.apps.length)firebase.initializeApp(cfg);
     db=firebase.database();
-    db.ref('pacientes').on('value',function(s){
+    db.ref('appflavia/pacientes').on('value',function(s){
       P=s.val()||{};
       Object.keys(P).forEach(function(k){norm(P[k]);});
       conectado=true;
@@ -123,7 +123,7 @@ function nuevoPaciente(){
 function borrarPaciente(){
   var p=P[cur];if(!p)return;
   if(!confirm('¿Eliminar a '+p.nombre+' y todo su historial? No se puede deshacer.'))return;
-  db.ref('pacientes/'+p.id).remove();delete P[p.id];cur=null;render();
+  db.ref('appflavia/pacientes/'+p.id).remove();delete P[p.id];cur=null;render();
 }
 
 /* ---------- Plan ---------- */
