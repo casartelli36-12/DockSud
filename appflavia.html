@@ -51,6 +51,7 @@ details.ses .in{padding:0 12px 12px}
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script>
 var LS='appflavia_cfg';
 var db=null,P={},cur=null,tab='ficha',abiertas={},conectado=false;
@@ -80,6 +81,13 @@ function conectar(cfg){
   try{
     if(!firebase.apps.length)firebase.initializeApp(cfg);
     db=firebase.database();
+    firebase.auth().signInAnonymously().then(escuchar).catch(function(err){
+      alert('No se pudo iniciar sesión anónima. En Firebase activá Authentication > Sign-in method > Anónimo.\n\n'+err.message);
+    });
+  }catch(e){alert('Error de configuración: '+e.message);localStorage.removeItem(LS);render();}
+}
+function escuchar(){
+  try{
     db.ref('appflavia/pacientes').on('value',function(s){
       P=s.val()||{};
       Object.keys(P).forEach(function(k){norm(P[k]);});
