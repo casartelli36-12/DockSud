@@ -81,9 +81,7 @@ function conectar(cfg){
   try{
     if(!firebase.apps.length)firebase.initializeApp(cfg);
     db=firebase.database();
-    firebase.auth().signInAnonymously().then(escuchar).catch(function(err){
-      alert('No se pudo iniciar sesión anónima. En Firebase activá Authentication > Sign-in method > Anónimo.\n\n'+err.message);
-    });
+    firebase.auth().signInAnonymously().catch(function(){}).then(escuchar);
   }catch(e){alert('Error de configuración: '+e.message);localStorage.removeItem(LS);render();}
 }
 function escuchar(){
