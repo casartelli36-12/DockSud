@@ -92,6 +92,17 @@ details.ses[open]>summary{border-bottom:1px solid var(--line);background:#FAFCFB
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script>
 var LS='appflavia_cfg';
+/* Configuración de Firebase ya incluida: quien abre el link no tiene que pegar nada. */
+var CFG_FIJA={
+  apiKey: "AIzaSyD0tAzvgnE8aQ5GnBebaJWy_FQCz1dGKHY",
+  authDomain: "docksud-d548a.firebaseapp.com",
+  databaseURL: "https://docksud-d548a-default-rtdb.firebaseio.com",
+  projectId: "docksud-d548a",
+  storageBucket: "docksud-d548a.firebasestorage.app",
+  messagingSenderId: "779495490317",
+  appId: "1:779495490317:web:4856dac1429acb7072e644"
+};
+
 var db=null,P={},cur=null,tab='ficha',abiertas={},conectado=false,foco=null;
 
 /* ---------- utilidades ---------- */
@@ -314,7 +325,6 @@ function vistaLista(){
     var p=P[id],last=p.sesiones.length?p.sesiones.map(function(s){return s.fecha||'';}).sort().pop():'';
     h+='<button class="pi" data-n="'+esc(String(p.nombre).toLowerCase())+'" onclick="abrir(\''+id+'\')"><b>'+esc(p.nombre)+'</b><small>'+esc(p.dx||'Sin diagnóstico')+' · '+p.sesiones.length+' sesiones'+(last?' · última '+fmtF(last):'')+'</small></button>';
   });
-  h+='<button class="link" onclick="cambiarCfg()">Cambiar configuración de Firebase</button>';
   h+='<button class="fab" onclick="nuevoPaciente()">+ Paciente</button>';
   return h;
 }
@@ -432,7 +442,8 @@ function render(){
 /* ---------- inicio ---------- */
 (function(){
   var raw=localStorage.getItem(LS);
-  if(raw){try{conectar(JSON.parse(raw));}catch(e){localStorage.removeItem(LS);}}
+  if(CFG_FIJA&&CFG_FIJA.apiKey&&CFG_FIJA.databaseURL){conectar(CFG_FIJA);}
+  else if(raw){try{conectar(JSON.parse(raw));}catch(e){localStorage.removeItem(LS);}}
   render();
 })();
 </script>
